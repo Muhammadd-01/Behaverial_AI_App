@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "182642185267",
+    "project_id": "positive-attitude-creator",
+    "storage_bucket": "positive-attitude-creator.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:182642185267:android:cf2e3f446cd1d4265a3f46",
+        "android_client_info": {
+          "package_name": "com.positiveai.positive_attitude_creator"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "182642185267-d7bnq4p8b0rsrrefm3o9skpu7f29r84e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPtoQQjz8E9H_8VpIlVk9wkXRgF1OuzQc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "182642185267-d7bnq4p8b0rsrrefm3o9skpu7f29r84e.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "182642185267-k4hasfghdj77h37fkub37ur4birnkh7c.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.positiveai.positiveAttitudeCreator"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
