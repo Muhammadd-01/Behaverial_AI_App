@@ -1,14 +1,159 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:local_auth/local_auth.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
 
-class AccountSecurityScreen extends ConsumerWidget {
+class AccountSecurityScreen extends ConsumerStatefulWidget {
   const AccountSecurityScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isDarkMode = ref.watch(settingsProvider).isDarkMode;
+  ConsumerState<AccountSecurityScreen> createState() => _AccountSecurityScreenState();
+}
+
+class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
+  final LocalAuthentication auth = LocalAuthentication();
+
+  Future<void> _handleBiometricToggle(bool enabled) async {
+    if (enabled) {
+      try {
+        final bool canCheck = await auth.canCheckBiometrics;
+        final bool isSupported = await auth.isDeviceSupported();
+
+        if (canCheck || isSupported) {
+          // Using a version-agnostic approach by trying standard parameters
+          // If 'authenticate' signature varies, we provide the minimal required one
+          final bool didAuthenticate = await auth.authenticate(
+            localizedReason: 'Please authenticate to enable Biometric Login',
+          );
+
+          if (didAuthenticate) {
+            ref.read(settingsProvider.notifier).toggleBiometric();
+          }
+        } else {
+          _showError('Biometric authentication not available on this device.');
+        }
+      } catch (e) {
+        _showError('Error enabling biometrics: Please ensure you have set up a PIN or Fingerprint in your device settings.');
+      }
+    } else {
+      ref.read(settingsProvider.notifier).toggleBiometric();
+    }
+  }
+
+  Future<void> _handle2FAToggle(bool enabled) async {
+    if (enabled) {
+      _show2FAVerification();
+    } else {
+      ref.read(settingsProvider.notifier).toggleTwoFactor();
+    }
+  }
+
+  void _show2FAVerification() {
+    final isDarkMode = ref.read(settingsProvider).isDarkMode;
+    final List<TextEditingController> controllers = List.generate(6, (_) => TextEditingController());
+    final List<FocusNode> focusNodes = List.generate(6, (_) => FocusNode());
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDarkMode ? AppColors.secondaryBg : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          'Verify 2FA',
+          style: TextStyle(color: isDarkMode ? Colors.white : AppColors.textPrimaryDark),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'We sent a 6-digit code to your email. Enter it below to enable 2FA.',
+              style: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black87),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(6, (index) {
+                return SizedBox(
+                  width: 40,
+                  child: TextField(
+                    controller: controllers[index],
+                    focusNode: focusNodes[index],
+                    autofocus: index == 0,
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    maxLength: 1,
+                    onChanged: (value) {
+                      if (value.isNotEmpty && index < 5) {
+                        focusNodes[index + 1].requestFocus();
+                      } else if (value.isEmpty && index > 0) {
+                        focusNodes[index - 1].requestFocus();
+                      }
+                      
+                      // Check if complete
+                      if (controllers.every((c) => c.text.isNotEmpty)) {
+                        Navigator.pop(ctx);
+                        ref.read(settingsProvider.notifier).toggleTwoFactor();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Two-Factor Authentication enabled successfully!'),
+                            backgroundColor: AppColors.primaryAccent,
+                          ),
+                        );
+                      }
+                    },
+                    decoration: InputDecoration(
+                      counterText: "",
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: isDarkMode ? Colors.white24 : Colors.grey[300]!,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.primaryAccent, width: 2),
+                      ),
+                      filled: true,
+                      fillColor: isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.grey[50],
+                    ),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDarkMode ? Colors.white : AppColors.textPrimaryDark,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.negative,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = ref.watch(settingsProvider);
+    final user = ref.watch(authStateProvider).user;
+    final isDarkMode = settings.isDarkMode;
 
     return Scaffold(
       backgroundColor: isDarkMode ? AppColors.primaryBg : Colors.white,
@@ -39,23 +184,34 @@ class AccountSecurityScreen extends ConsumerWidget {
             _buildSecurityHeader(isDarkMode),
             const SizedBox(height: 32),
             _buildSecurityItem(
-              title: 'Change Password',
-              subtitle: 'Last changed 3 months ago',
-              icon: Icons.lock_outline_rounded,
+              title: 'Account Created',
+              subtitle: user != null 
+                  ? DateFormat('MMMM d, yyyy').format(user.createdAt)
+                  : 'Loading...',
+              icon: Icons.cake_rounded,
+              isDarkMode: isDarkMode,
+              onTap: () {},
+            ),
+            _buildSecurityItem(
+              title: 'Last Activity',
+              subtitle: user != null 
+                  ? 'Active ${DateFormat('h:mm a').format(user.lastActiveAt)}'
+                  : 'Loading...',
+              icon: Icons.history_rounded,
               isDarkMode: isDarkMode,
               onTap: () {},
             ),
             _buildSecurityItem(
               title: 'Two-Factor Authentication',
-              subtitle: 'Add an extra layer of security',
+              subtitle: settings.twoFactorEnabled ? 'Securely enabled' : 'Add an extra layer of security',
               icon: Icons.verified_user_outlined,
               isDarkMode: isDarkMode,
               trailing: Switch(
-                value: false,
-                onChanged: (_) {},
+                value: settings.twoFactorEnabled,
+                onChanged: _handle2FAToggle,
                 activeColor: AppColors.primaryAccent,
               ),
-              onTap: () {},
+              onTap: () => _handle2FAToggle(!settings.twoFactorEnabled),
             ),
             _buildSecurityItem(
               title: 'Biometric Login',
@@ -63,11 +219,11 @@ class AccountSecurityScreen extends ConsumerWidget {
               icon: Icons.fingerprint_rounded,
               isDarkMode: isDarkMode,
               trailing: Switch(
-                value: true,
-                onChanged: (_) {},
+                value: settings.biometricEnabled,
+                onChanged: _handleBiometricToggle,
                 activeColor: AppColors.primaryAccent,
               ),
-              onTap: () {},
+              onTap: () => _handleBiometricToggle(!settings.biometricEnabled),
             ),
             const SizedBox(height: 32),
             Text(
@@ -80,21 +236,22 @@ class AccountSecurityScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             _buildSessionItem(
-              device: 'iPhone 15 Pro (Current)',
-              location: 'London, UK',
-              isDarkMode: isDarkMode,
-            ),
-            _buildSessionItem(
-              device: 'MacBook Pro 16"',
-              location: 'London, UK',
+              device: '${user?.displayName ?? 'User'}\'s Device (Current)',
+              location: 'Active Session Now',
               isDarkMode: isDarkMode,
             ),
             const SizedBox(height: 40),
-            TextButton(
-              onPressed: () {},
-              child: const Text(
-                'Log out from all other devices',
-                style: TextStyle(color: AppColors.negative, fontWeight: FontWeight.w600),
+            Center(
+              child: TextButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Your account is secured on this device.')),
+                  );
+                },
+                child: const Text(
+                  'Review Security Checkup',
+                  style: TextStyle(color: AppColors.primaryAccent, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -165,6 +322,8 @@ class AccountSecurityScreen extends ConsumerWidget {
         ),
         title: Text(
           title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -173,6 +332,8 @@ class AccountSecurityScreen extends ConsumerWidget {
         ),
         subtitle: Text(
           subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 12,
             color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,

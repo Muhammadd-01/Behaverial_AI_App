@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/models/models.dart';
-import '../../../core/services/dummy_data_service.dart';
 
 /// Insights screen with weekly/monthly charts, behavior summary, and gamification
 class InsightsScreen extends ConsumerStatefulWidget {
@@ -17,23 +16,16 @@ class InsightsScreen extends ConsumerStatefulWidget {
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   int _selectedPeriod = 0; // 0=Weekly, 1=Monthly
-  late List<InsightData> _weeklyData;
-  late List<InsightData> _monthlyData;
-
-  @override
-  void initState() {
-    super.initState();
-    _weeklyData = DummyDataService.getWeeklyInsights();
-    _monthlyData = DummyDataService.getMonthlyInsights();
-  }
-
-  List<InsightData> get _currentData =>
-      _selectedPeriod == 0 ? _weeklyData : _monthlyData;
 
   @override
   Widget build(BuildContext context) {
-    final streakInfo = ref.watch(dashboardProvider).streakInfo;
+    final dashboardState = ref.watch(dashboardProvider);
+    final streakInfo = dashboardState.streakInfo;
     final isDarkMode = ref.watch(settingsProvider).isDarkMode;
+
+    final weeklyData = dashboardState.weeklyInsights;
+    final monthlyData = dashboardState.monthlyInsights;
+    final currentData = _selectedPeriod == 0 ? weeklyData : monthlyData;
 
     return Scaffold(
       backgroundColor: isDarkMode ? AppColors.primaryBg : Colors.white,
@@ -73,17 +65,17 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                 const SizedBox(height: 20),
 
                 // Line Chart
-                _buildLineChart(isDarkMode),
+                _buildLineChart(currentData, isDarkMode),
 
                 const SizedBox(height: 20),
 
                 // Bar Chart
-                _buildBarChart(isDarkMode),
+                _buildBarChart(weeklyData, monthlyData, isDarkMode),
 
                 const SizedBox(height: 20),
 
                 // Behavior Summary
-                _buildBehaviorSummary(isDarkMode),
+                _buildBehaviorSummary(currentData, isDarkMode),
 
                 const SizedBox(height: 20),
 
@@ -144,8 +136,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildLineChart(bool isDarkMode) {
-    final data = _currentData;
+  Widget _buildLineChart(List<InsightData> data, bool isDarkMode) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -269,9 +260,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildBarChart(bool isDarkMode) {
+  Widget _buildBarChart(List<InsightData> weeklyData, List<InsightData> monthlyData, bool isDarkMode) {
     final data =
-        _selectedPeriod == 0 ? _weeklyData : _monthlyData.take(7).toList();
+        _selectedPeriod == 0 ? weeklyData : monthlyData.take(7).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -393,8 +384,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildBehaviorSummary(bool isDarkMode) {
-    final data = _currentData;
+  Widget _buildBehaviorSummary(List<InsightData> data, bool isDarkMode) {
     final avgScore =
         data.isEmpty ? 0 : data.map((d) => d.score).reduce((a, b) => a + b) ~/ data.length;
     final positiveCount =

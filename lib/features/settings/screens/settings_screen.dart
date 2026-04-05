@@ -10,6 +10,7 @@ import 'edit_profile_screen.dart';
 import 'security_screen.dart';
 import 'language_screen.dart';
 import '../../subscription/screens/subscription_screen.dart';
+import 'feedback_screen.dart';
 
 /// Settings screen with privacy controls, premium, and profile management
 class SettingsScreen extends ConsumerWidget {
@@ -183,6 +184,17 @@ class SettingsScreen extends ConsumerWidget {
 
                     // About
                     _buildSection('About', [
+                      _settingsAction(
+                        'Feedback & Reviews',
+                        'Rate your experience',
+                        Icons.rate_review_rounded,
+                        AppColors.primaryAccent,
+                        isDarkMode,
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const FeedbackScreen()),
+                        ),
+                      ),
                       _settingsAction(
                         'Privacy Policy',
                         'How we handle your data',

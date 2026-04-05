@@ -61,47 +61,65 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Start animation sequence
     _logoController.forward();
     Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) _textController.forward();
     });
 
+    _startWorkflow();
+  }
+
+  void _startWorkflow() async {
+    // Wait for animations and initialization
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+    
     _checkAuthAndNavigate();
   }
 
-  void _checkAuthAndNavigate() {
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      
-      final authState = ref.read(authStateProvider);
-      if (!authState.isInitialized) {
-        _checkAuthAndNavigate();
-        return;
-      }
+  Future<void> _checkAuthAndNavigate() async {
+    final authState = ref.read(authStateProvider);
+    if (!authState.isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      return _checkAuthAndNavigate();
+    }
 
-      final isOnboardingComplete = ref.read(onboardingProvider);
-      final isLoggedIn = authState.isLoggedIn;
+    final settings = ref.read(settingsProvider);
+    final isOnboardingComplete = ref.read(onboardingProvider);
+    final isLoggedIn = authState.isLoggedIn;
 
-      Widget nextScreen;
-      if (!isOnboardingComplete) {
-        nextScreen = const OnboardingScreen();
-      } else if (!isLoggedIn) {
-        nextScreen = const AuthScreen();
+    if (!isOnboardingComplete) {
+      _navigateTo(const OnboardingScreen());
+    } else if (!isLoggedIn) {
+      _navigateTo(const AuthScreen());
+    } else {
+      if (settings.biometricEnabled) {
+        final success = await ref.read(settingsProvider.notifier).authenticateBiometrics();
+        if (success) {
+          _navigateTo(const MainShell());
+        } else {
+          // Stay on splash or show error
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Authentication failed. Please try again.')),
+          );
+          _startWorkflow(); // Retry
+        }
       } else {
-        nextScreen = const MainShell();
+        _navigateTo(const MainShell());
       }
+    }
+  }
 
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => nextScreen,
-          transitionDuration: const Duration(milliseconds: 800),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-        ),
-      );
-    });
+  void _navigateTo(Widget screen) {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => screen,
+        transitionDuration: const Duration(milliseconds: 800),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
   }
 
   @override

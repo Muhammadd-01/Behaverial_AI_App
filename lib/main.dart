@@ -41,6 +41,9 @@ Future<void> main() async {
   );
 }
 
+/// Global key for accessing ScaffoldMessenger from anywhere
+final GlobalKey<ScaffoldMessengerState> snackbarKey = GlobalKey<ScaffoldMessengerState>();
+
 /// Root app widget
 class MindBloomApp extends ConsumerWidget {
   const MindBloomApp({super.key});
@@ -50,6 +53,7 @@ class MindBloomApp extends ConsumerWidget {
     final isDarkMode = ref.watch(settingsProvider).isDarkMode;
 
     return MaterialApp(
+      scaffoldMessengerKey: snackbarKey,
       title: 'MindBloom AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,

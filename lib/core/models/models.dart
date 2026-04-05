@@ -249,6 +249,47 @@ class FeedbackItem {
   });
 }
 
+// ── App Review/Feedback Model ──
+class AppReview {
+  final String id;
+  final String userId;
+  final String userName;
+  final String? userPhoto;
+  final double rating;
+  final String comment;
+  final DateTime createdAt;
+
+  const AppReview({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    this.userPhoto,
+    required this.rating,
+    required this.comment,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'userId': userId,
+    'userName': userName,
+    'userPhoto': userPhoto,
+    'rating': rating,
+    'comment': comment,
+    'createdAt': createdAt.toIso8601String(),
+  };
+
+  factory AppReview.fromMap(Map<String, dynamic> map) => AppReview(
+    id: map['id'] ?? '',
+    userId: map['userId'] ?? '',
+    userName: map['userName'] ?? 'Anonymous',
+    userPhoto: map['userPhoto'],
+    rating: (map['rating'] ?? 0).toDouble(),
+    comment: map['comment'] ?? '',
+    createdAt: DateTime.parse(map['createdAt']),
+  );
+}
+
 // ── Mood Enum ──
 enum MoodType {
   veryHappy('😄', 'Very Happy', 95),

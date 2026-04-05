@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
+import '../../../core/services/api_service.dart';
 
 class BehaviorGameScreen extends ConsumerStatefulWidget {
   const BehaviorGameScreen({super.key});
@@ -12,80 +13,50 @@ class BehaviorGameScreen extends ConsumerStatefulWidget {
 }
 
 class _BehaviorGameScreenState extends ConsumerState<BehaviorGameScreen> {
-  int _currentScenarioIndex = 0;
+  Map<String, dynamic>? _aiChallenge;
+  bool _isLoading = true;
   bool _hasResponded = false;
-  int? _selectedChoiceIndex;
 
-  final List<Map<String, dynamic>> _scenarios = [
-    {
-      'title': 'The Rainy Morning',
-      'description': 'You wake up feeling tired, and it\'s pouring rain outside. You have a long to-do list.',
-      'choices': [
-        {'text': 'Complain about the weather and stay in bed.', 'points': 5, 'feedback': 'Avoidance can feel good short-term, but it stunts growth.'},
-        {'text': 'Make a warm tea and tackle the smallest task first.', 'points': 25, 'feedback': 'Excellent! Small wins build momentum.'},
-        {'text': 'Tell yourself the day is already ruined.', 'points': 0, 'feedback': 'Catastrophizing makes challenges feel bigger than they are.'},
-      ],
-    },
-    {
-      'title': 'A Difficult Email',
-      'description': 'You receive some critical feedback on a project you worked hard on.',
-      'choices': [
-        {'text': 'Delete the email and ignore it.', 'points': 5, 'feedback': 'Ignoring feedback prevents you from improving.'},
-        {'text': 'Reply defensively and explain why they are wrong.', 'points': 10, 'feedback': 'Defensiveness blocks the path to mastery.'},
-        {'text': 'Take a breath and look for one constructive point.', 'points': 30, 'feedback': 'Growth Mindset! Critique is just data for your next win.'},
-      ],
-    },
-    {
-      'title': 'The Missed Opportunity',
-      'description': 'You forgot to call a friend on their birthday.',
-      'choices': [
-        {'text': 'Wait for them to call you first.', 'points': 5, 'feedback': 'Pride is the enemy of connection.'},
-        {'text': 'Call now, apologize, and wish them well.', 'points': 25, 'feedback': 'Authenticity heals! Taking responsibility is a high-level behavior.'},
-        {'text': 'Send a quick text and hope they aren\'t mad.', 'points': 15, 'feedback': 'It\'s a start, but a direct call shows more care.'},
-      ],
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadAIChallenge();
+  }
+
+  Future<void> _loadAIChallenge() async {
+    setState(() => _isLoading = true);
+    final challenge = await ApiService.generateAIChallenge();
+    setState(() {
+      _aiChallenge = challenge;
+      _isLoading = false;
+      _hasResponded = false;
+    });
+  }
 
   void _handleChoice(int index) {
     if (_hasResponded) return;
 
     setState(() {
       _hasResponded = true;
-      _selectedChoiceIndex = index;
     });
 
-    final points = _scenarios[_currentScenarioIndex]['choices'][index]['points'] as int;
-    if (points > 0) {
-      ref.read(authStateProvider.notifier).addPoints(points);
-    }
+    // Grant points for any AI challenge activity
+    ref.read(authStateProvider.notifier).addPoints(_aiChallenge?['points'] ?? 50);
   }
 
-  Future<void> _nextScenario() async {
-    if (_currentScenarioIndex < _scenarios.length - 1) {
-      setState(() {
-        _currentScenarioIndex++;
-        _hasResponded = false;
-        _selectedChoiceIndex = null;
-      });
-    } else {
-      // Grant points for successful completion
-      await ref.read(authStateProvider.notifier).addPoints(50);
-      
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Daily Mindset Challenge Complete! +EXP Earned'),
-          backgroundColor: AppColors.primaryAccent,
-        ),
-      );
-    }
+  Future<void> _finishChallenge() async {
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('AI Mindset Challenge Complete! XP Earned'),
+        backgroundColor: AppColors.primaryAccent,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDarkMode = ref.watch(settingsProvider).isDarkMode;
-    final scenario = _scenarios[_currentScenarioIndex];
 
     return Scaffold(
       backgroundColor: isDarkMode ? AppColors.primaryBg : Colors.white,
@@ -93,12 +64,20 @@ class _BehaviorGameScreenState extends ConsumerState<BehaviorGameScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          'Daily Challenge',
+          'Positivity Arena',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
           ),
         ),
+        actions: [
+          if (!_isLoading)
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _loadAIChallenge,
+              color: AppColors.primaryAccent,
+            ),
+        ],
         leading: IconButton(
           icon: Icon(Icons.close, color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark),
           onPressed: () => Navigator.pop(context),
@@ -108,30 +87,13 @@ class _BehaviorGameScreenState extends ConsumerState<BehaviorGameScreen> {
         decoration: BoxDecoration(
           gradient: isDarkMode ? AppColors.darkGradient : AppColors.lightGradient,
         ),
-        child: Padding(
+        child: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Progress indicator
-              Row(
-                children: List.generate(_scenarios.length, (index) {
-                  return Expanded(
-                    child: Container(
-                      height: 4,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        color: index <= _currentScenarioIndex 
-                            ? AppColors.primaryAccent 
-                            : (isDarkMode ? Colors.white10 : Colors.black12),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 40),
-              
               // Scenario Card
               Container(
                 padding: const EdgeInsets.all(24),
@@ -146,7 +108,7 @@ class _BehaviorGameScreenState extends ConsumerState<BehaviorGameScreen> {
                 child: Column(
                   children: [
                     Text(
-                      _scenarios[_currentScenarioIndex]['title'],
+                      _aiChallenge?['title'] ?? 'Positivity Quest',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 22,
@@ -156,7 +118,7 @@ class _BehaviorGameScreenState extends ConsumerState<BehaviorGameScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      _scenarios[_currentScenarioIndex]['description'],
+                      _aiChallenge?['task'] ?? 'Take a deep breath and smile.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 16,
@@ -170,77 +132,72 @@ class _BehaviorGameScreenState extends ConsumerState<BehaviorGameScreen> {
 
               const SizedBox(height: 32),
               
-              // Choices
-              ...List.generate(scenario['choices'].length, (index) {
-                final choice = scenario['choices'][index];
-                final isSelected = _selectedChoiceIndex == index;
-                
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: InkWell(
-                    onTap: () => _handleChoice(index),
-                    borderRadius: BorderRadius.circular(16),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: _hasResponded 
-                            ? (isSelected 
-                                ? AppColors.primaryAccent.withValues(alpha: 0.1) 
-                                : (isDarkMode ? AppColors.cardBg : Colors.grey[100]))
-                            : (isDarkMode ? AppColors.cardBg : Colors.white),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: _hasResponded && isSelected 
-                              ? AppColors.primaryAccent 
-                              : (isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
-                          width: isSelected ? 2 : 1,
-                        ),
-                      ),
-                      child: Text(
-                        choice['text'],
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
-                        ),
+              // Points indicator
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.stars_rounded, color: AppColors.primaryAccent, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Potential Reward: ${_aiChallenge?['points'] ?? 50} XP',
+                      style: const TextStyle(
+                        color: AppColors.primaryAccent,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ).animate().fadeIn(delay: (200 * index).ms).slideX();
-              }),
+                  ],
+                ),
+              ),
 
-              const SizedBox(height: 16),
               const Spacer(),
 
-              // Feedback Section
-              if (_hasResponded) 
+              // Action Buttons
+              if (!_hasResponded)
+                ElevatedButton(
+                  onPressed: () => _handleChoice(1),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: AppColors.primaryAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('I will do this!', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                )
+              else
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: AppColors.secondaryAccent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.secondaryAccent.withValues(alpha: 0.2)),
+                    color: AppColors.positive.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: AppColors.positive.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     children: [
-                      Text(
-                        scenario['choices'][_selectedChoiceIndex!]['feedback'],
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontStyle: FontStyle.italic,
-                          color: AppColors.secondaryAccent,
-                        ),
-                      ),
+                      const Icon(Icons.check_circle_rounded, color: AppColors.positive, size: 48),
                       const SizedBox(height: 16),
+                      const Text(
+                        'Challenge Accepted!',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.positive),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Complete the task in real life to level up your mindset.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 24),
                       ElevatedButton(
-                        onPressed: _nextScenario,
+                        onPressed: _finishChallenge,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryAccent,
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.positive,
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                         ),
-                        child: Text(_currentScenarioIndex < _scenarios.length - 1 ? 'Next Scenario' : 'Finish Challenge'),
+                        child: const Text('Finish'),
                       ),
                     ],
                   ),

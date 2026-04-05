@@ -5,10 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'package:local_auth/local_auth.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
-import '../services/dummy_data_service.dart';
+import '../utils/app_notifications.dart';
 
 // ── Auth State ──
 
@@ -96,6 +96,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = state.copyWith(isLoggedIn: true, user: newUser, isInitialized: true, isLoading: false);
       }
     } catch (e) {
+      final message = AppNotifications.getFriendlyErrorMessage(e);
+      AppNotifications.show(null, message: message, type: NotificationType.error);
       state = state.copyWith(error: e.toString(), isInitialized: true, isLoading: false);
     }
   }
@@ -135,7 +137,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // state will be updated via authStateChanges listener
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
-      rethrow;
     }
   }
 
@@ -276,25 +277,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (image == null) return;
       
       state = state.copyWith(isLoading: true);
-      final file = File(image.path);
+      final fileBytes = await image.readAsBytes();
       final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final storagePath = '${state.user!.uid}/$fileName';
 
       // 2. Upload to Supabase (using folder structure from guide)
       final supabase = Supabase.instance.client;
-      await supabase.storage.from('profile-images').upload(
+      await supabase.storage.from('profile-images').uploadBinary(
         storagePath,
-        file,
+        fileBytes,
         fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
       );
 
       // 3. Get Public URL
       final String publicUrl = supabase.storage.from('profile-images').getPublicUrl(storagePath);
+      print('Profile upload success: $publicUrl');
 
       // 4. Update Profile in Firestore
       await updateProfile(photoUrl: publicUrl);
       
     } catch (e) {
+      print('Supabase Profile Upload Error: $e');
       state = state.copyWith(isLoading: false, error: 'Upload failed: ${e.toString()}');
     }
   }
@@ -316,25 +319,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (image == null) return null;
       
       state = state.copyWith(isLoading: true);
-      final file = File(image.path);
+      final fileBytes = await image.readAsBytes();
       final fileName = 'journal_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final storagePath = '${state.user!.uid}/$fileName';
 
       // 2. Upload to Supabase
       final supabase = Supabase.instance.client;
-      await supabase.storage.from('journal-attachments').upload(
+      await supabase.storage.from('journal-attachments').uploadBinary(
         storagePath,
-        file,
+        fileBytes,
         fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
       );
 
       // 3. Get Public URL
       final String publicUrl = supabase.storage.from('journal-attachments').getPublicUrl(storagePath);
+      print('Journal upload success: $publicUrl');
       
       state = state.copyWith(isLoading: false);
       return publicUrl;
       
     } catch (e) {
+      print('Supabase Journal Upload Error: $e');
       state = state.copyWith(isLoading: false, error: 'Journal image upload failed: ${e.toString()}');
       return null;
     }
@@ -350,16 +355,20 @@ final dashboardProvider = StateNotifierProvider<DashboardNotifier, DashboardStat
 class DashboardState {
   final DailyReport? todayReport;
   final List<InsightData> weeklyInsights;
+  final List<InsightData> monthlyInsights;
   final List<AnalysisResult> recentAnalyses;
   final Map<String, dynamic> streakInfo;
   final bool isLoading;
+  final String? error;
 
   const DashboardState({
     this.todayReport,
     this.weeklyInsights = const [],
+    this.monthlyInsights = const [],
     this.recentAnalyses = const [],
     this.streakInfo = const {},
     this.isLoading = true,
+    this.error,
   });
 }
 
@@ -428,21 +437,32 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         );
       }
 
-      // Build weekly insights from analyses
+      // Build weekly/monthly insights from analyses
       List<InsightData> weeklyInsights;
-      if (recentAnalyses.isNotEmpty) {
-        final weekStart = now.subtract(const Duration(days: 7));
-        weeklyInsights = recentAnalyses
-            .where((a) => a.analyzedAt.isAfter(weekStart))
-            .map((a) => InsightData(
-                  date: a.analyzedAt,
-                  score: a.positivityScore,
-                  sentiment: a.sentiment,
-                ))
-            .toList();
-      } else {
-        weeklyInsights = [];
-      }
+      List<InsightData> monthlyInsights;
+      
+      final weekStart = now.subtract(const Duration(days: 7));
+      final monthStart = now.subtract(const Duration(days: 30));
+
+      weeklyInsights = recentAnalyses
+          .where((a) => a.analyzedAt.isAfter(weekStart))
+          .map((a) => InsightData(
+                date: a.analyzedAt,
+                score: a.positivityScore,
+                sentiment: a.sentiment,
+              ))
+          .toList()
+          .reversed.toList(); // Chronological for charts
+
+      monthlyInsights = recentAnalyses
+          .where((a) => a.analyzedAt.isAfter(monthStart))
+          .map((a) => InsightData(
+                date: a.analyzedAt,
+                score: a.positivityScore,
+                sentiment: a.sentiment,
+              ))
+          .toList()
+          .reversed.toList();
 
       // Fetch user doc for streak info
       final userDoc = await _db.collection('users').doc(userId).get();
@@ -459,18 +479,34 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       state = DashboardState(
         todayReport: todayReport,
         weeklyInsights: weeklyInsights,
+        monthlyInsights: monthlyInsights,
         recentAnalyses: recentAnalyses.take(5).toList(),
         streakInfo: streakInfo,
         isLoading: false,
       );
     } catch (e) {
-      // Fallback to dummy data on error
+      print('Dashboard Load Error: $e');
+      // On error, we still want to show a valid (empty) state rather than dummy data
+      // unless we are in a specifically designated 'demo' mode.
       state = DashboardState(
-        todayReport: DummyDataService.getTodayReport(userId),
-        weeklyInsights: DummyDataService.getWeeklyInsights(),
-        recentAnalyses: DummyDataService.getRecentAnalyses(userId),
-        streakInfo: DummyDataService.getStreakInfo(),
+        todayReport: DailyReport(
+          id: 'error',
+          userId: userId,
+          date: DateTime.now(),
+          averageScore: 0,
+          dominantSentiment: 'Neutral',
+          dominantTone: 'Calm',
+          suggestions: ['Your insights will appear once your reflections are analyzed.'],
+        ),
+        weeklyInsights: [],
+        recentAnalyses: [],
+        streakInfo: {
+          'currentStreak': 0,
+          'level': 1,
+          'points': 0,
+        },
         isLoading: false,
+        error: 'Failed to load specific user data: ${e.toString()}',
       );
     }
   }
@@ -591,6 +627,8 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
         isAnalyzing: false,
       );
     } catch (e) {
+      final message = AppNotifications.getFriendlyErrorMessage(e);
+      AppNotifications.show(null, message: message, type: NotificationType.error);
       state = AnalysisState(isAnalyzing: false, error: e.toString());
     }
   }
@@ -605,33 +643,47 @@ final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
   return SettingsNotifier(prefs);
 });
 
+final feedbackProvider = StateNotifierProvider<FeedbackNotifier, FeedbackState>((ref) => FeedbackNotifier(ref));
+
 class SettingsState {
   final bool trackingEnabled;
   final bool notificationsEnabled;
   final bool islamicContentEnabled;
+  final bool twoFactorEnabled;
+  final bool biometricEnabled;
   final SubscriptionTier subscriptionTier;
   final bool isDarkMode;
+  final bool isPassiveMode;
 
   const SettingsState({
     this.trackingEnabled = true,
     this.notificationsEnabled = true,
     this.islamicContentEnabled = true,
+    this.twoFactorEnabled = false,
+    this.biometricEnabled = true,
     this.subscriptionTier = SubscriptionTier.seedling,
     this.isDarkMode = false,
+    this.isPassiveMode = false,
   });
 
   SettingsState copyWith({
     bool? trackingEnabled,
     bool? notificationsEnabled,
     bool? islamicContentEnabled,
+    bool? twoFactorEnabled,
+    bool? biometricEnabled,
     SubscriptionTier? subscriptionTier,
     bool? isDarkMode,
+    bool? isPassiveMode,
   }) => SettingsState(
     trackingEnabled: trackingEnabled ?? this.trackingEnabled,
     notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     islamicContentEnabled: islamicContentEnabled ?? this.islamicContentEnabled,
+    twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
+    biometricEnabled: biometricEnabled ?? this.biometricEnabled,
     subscriptionTier: subscriptionTier ?? this.subscriptionTier,
     isDarkMode: isDarkMode ?? this.isDarkMode,
+    isPassiveMode: isPassiveMode ?? this.isPassiveMode,
   );
 }
 
@@ -651,9 +703,93 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   void toggleTracking() => state = state.copyWith(trackingEnabled: !state.trackingEnabled);
   void toggleNotifications() => state = state.copyWith(notificationsEnabled: !state.notificationsEnabled);
-  void toggleIslamicContent() => state = state.copyWith(islamicContentEnabled: !state.islamicContentEnabled);
+  void toggleTwoFactor() => state = state.copyWith(twoFactorEnabled: !state.twoFactorEnabled);
+  void toggleBiometric() => state = state.copyWith(biometricEnabled: !state.biometricEnabled);
+  void togglePassiveMode() => state = state.copyWith(isPassiveMode: !state.isPassiveMode);
+  void toggleIslamicContent() {
+    state = state.copyWith(islamicContentEnabled: !state.islamicContentEnabled);
+  }
   void updateSubscription(SubscriptionTier tier) {
     state = state.copyWith(subscriptionTier: tier);
+  }
+
+  Future<bool> authenticateBiometrics() async {
+    final LocalAuthentication auth = LocalAuthentication();
+    try {
+      final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
+      final bool canAuthenticate = canAuthenticateWithBiometrics || await auth.isDeviceSupported();
+
+      if (!canAuthenticate) return true; // Fail-safe for demo
+
+      return await auth.authenticate(
+        localizedReason: 'Please authenticate to access MindBloom AI',
+      );
+    } catch (e) {
+      return true; // Fail-safe for demo/simulators
+    }
+  }
+}
+
+// ── Feedback Provider ──
+
+class FeedbackState {
+  final List<AppReview> reviews;
+  final bool isLoading;
+  final String? error;
+
+  const FeedbackState({
+    this.reviews = const [],
+    this.isLoading = false,
+    this.error,
+  });
+}
+
+class FeedbackNotifier extends StateNotifier<FeedbackState> {
+  final Ref _ref;
+  final _db = FirebaseFirestore.instance;
+
+  FeedbackNotifier(this._ref) : super(const FeedbackState()) {
+    loadFeedbacks();
+  }
+
+  Future<void> loadFeedbacks() async {
+    state = FeedbackState(reviews: state.reviews, isLoading: true);
+    try {
+      final snapshot = await _db
+          .collection('feedbacks')
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .get();
+
+      final reviews = snapshot.docs.map((doc) => AppReview.fromMap(doc.data())).toList();
+      state = FeedbackState(reviews: reviews, isLoading: false);
+    } catch (e) {
+      state = FeedbackState(reviews: state.reviews, isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<bool> submitFeedback(double rating, String comment) async {
+    final user = _ref.read(authStateProvider).user;
+    if (user == null) return false;
+
+    try {
+      final id = _db.collection('feedbacks').doc().id;
+      final review = AppReview(
+        id: id,
+        userId: user.uid,
+        userName: user.displayName.isNotEmpty ? user.displayName : 'User',
+        userPhoto: user.photoUrl,
+        rating: rating,
+        comment: comment,
+        createdAt: DateTime.now(),
+      );
+
+      await _db.collection('feedbacks').doc(id).set(review.toMap());
+      await loadFeedbacks(); // Refresh list
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }
 

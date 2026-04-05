@@ -6,9 +6,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/models/models.dart';
-import '../../report/screens/report_screen.dart';
 import '../../settings/screens/notifications_screen.dart';
 import '../../gamification/screens/behavior_game_screen.dart';
+import '../../../core/services/api_service.dart';
 
 /// Main dashboard showing positivity score, insights, and weekly trends
 class DashboardScreen extends ConsumerWidget {
@@ -28,6 +28,7 @@ class DashboardScreen extends ConsumerWidget {
           gradient: isDarkMode ? AppColors.darkGradient : AppColors.lightGradient,
         ),
         child: SafeArea(
+          /// AI chatbot coach powered by MindBloom AI
           child: dashboard.isLoading
               ? _buildLoadingState(isDarkMode)
               : RefreshIndicator(
@@ -43,18 +44,20 @@ class DashboardScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
+                        _buildPassiveAIBanner(ref, isDarkMode),
                         _buildHeader(context, user, isDarkMode),
                         const SizedBox(height: 20),
                         _buildDailyNudge(user, isDarkMode).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1),
                         const SizedBox(height: 16),
+                        /// Service for communicating with MindBloom AI and Backend
                         _buildScoreCard(dashboard.todayReport, isDarkMode).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1),
+                        const SizedBox(height: 20),
+                        _buildAICoachCard(isDarkMode).animate().fadeIn(delay: 250.ms).slideY(begin: 0.1),
                         const SizedBox(height: 20),
                         _buildStreakCard(user, isDarkMode).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
                         const SizedBox(height: 20),
                         _buildWeeklyChart(dashboard.weeklyInsights, isDarkMode).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1),
                         const SizedBox(height: 20),
-                        _buildSuggestionsCard(dashboard.todayReport, isDarkMode).animate().fadeIn(delay: 500.ms).slideY(begin: 0.1),
-                        const SizedBox(height: 16),
                         _buildRecentActivity(context, dashboard.recentAnalyses, isDarkMode).animate().fadeIn(delay: 600.ms).slideY(begin: 0.1),
                         const SizedBox(height: 20),
                         _buildGameCard(context, isDarkMode).animate().fadeIn(delay: 700.ms).slideY(begin: 0.1),
@@ -66,6 +69,75 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildPassiveAIBanner(WidgetRef ref, bool isDarkMode) {
+    final isPassive = ref.watch(settingsProvider).isPassiveMode;
+    if (!isPassive) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primaryAccent.withValues(alpha: 0.1),
+            AppColors.secondaryAccent.withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: const BoxDecoration(
+              color: Colors.green,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: Colors.green, blurRadius: 4, spreadRadius: 1),
+              ],
+            ),
+          ).animate(onPlay: (c) => c.repeat(reverse: true))
+           .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.2, 1.2), duration: 800.ms)
+           .tint(color: Colors.greenAccent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Passive AI Monitoring Active',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryAccent,
+                  ),
+                ),
+                Text(
+                  'MindBloom AI is subtly observing behavior patterns...',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            'LIVE',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: Colors.green.withValues(alpha: 0.7),
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn().slideX(begin: -0.1);
   }
 
   Widget _buildLoadingState(bool isDarkMode) {
@@ -171,18 +243,18 @@ class DashboardScreen extends ConsumerWidget {
           decoration: BoxDecoration(
             gradient: AppColors.blueGradient,
             shape: BoxShape.circle,
-            image: user?.photoUrl.isNotEmpty == true
+            image: (user != null && user.photoUrl.isNotEmpty)
                 ? DecorationImage(
-                    image: NetworkImage(user!.photoUrl),
+                    image: NetworkImage(user.photoUrl),
                     fit: BoxFit.cover,
                   )
                 : null,
           ),
-          child: user?.photoUrl.isEmpty == true 
+          child: (user == null || user.photoUrl.isEmpty)
             ? Center(
                 child: Text(
-                  user?.displayName.isNotEmpty == true
-                      ? user!.displayName[0].toUpperCase()
+                  (user != null && user.displayName.isNotEmpty)
+                      ? user.displayName[0].toUpperCase()
                       : 'P',
                   style: const TextStyle(
                     fontSize: 20,
@@ -546,7 +618,14 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildWeeklyChart(List<InsightData> data, bool isDarkMode) {
-    if (data.isEmpty) return const SizedBox.shrink();
+    // If data is empty, generate 7 days of 0s to show the trend starting at zero
+    final displayData = data.isEmpty 
+      ? List.generate(7, (index) => InsightData(
+          date: DateTime.now().subtract(Duration(days: 6 - index)),
+          score: 0,
+          sentiment: 'Neutral',
+        ))
+      : data;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -564,36 +643,40 @@ class DashboardScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Weekly Trend',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Weekly Trend',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
+                ),
+              ),
+              if (data.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Getting Started',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryAccent,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 20),
           SizedBox(
             height: 180,
-            child: data.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.auto_graph_rounded, color: isDarkMode ? Colors.white10 : Colors.black12, size: 40),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Waiting for your first entry...',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : LineChart(
-                    LineChartData(
+            child: LineChart(
+              LineChartData(
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
@@ -623,11 +706,11 @@ class DashboardScreen extends ConsumerWidget {
                       showTitles: true,
                       getTitlesWidget: (value, _) {
                         final index = value.toInt();
-                        if (index >= 0 && index < data.length) {
+                        if (index >= 0 && index < displayData.length) {
                           return Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              DateFormat('E').format(data[index].date),
+                              DateFormat('E').format(displayData[index].date),
                               style: TextStyle(
                                 fontSize: 10,
                                 color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
@@ -651,7 +734,7 @@ class DashboardScreen extends ConsumerWidget {
                 maxY: 100,
                 lineBarsData: [
                   LineChartBarData(
-                    spots: data.asMap().entries.map((e) {
+                    spots: displayData.asMap().entries.map((e) {
                       return FlSpot(
                         e.key.toDouble(),
                         e.value.score.toDouble(),
@@ -702,90 +785,99 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
           ),
+          if (data.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Center(
+                child: Text(
+                  'Your weekly trend will start appearing here!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: isDarkMode ? AppColors.textSecondary.withValues(alpha: 0.7) : AppColors.textSecondaryDark.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildSuggestionsCard(DailyReport? report, bool isDarkMode) {
-    final suggestions = report?.suggestions ?? [];
-    if (suggestions.isEmpty) return const SizedBox.shrink();
+  Widget _buildAICoachCard(bool isDarkMode) {
+    return FutureBuilder<String>(
+      future: ApiService.chatWithCoach('Give me a one-sentence behavioral positivity tip for today.'),
+      builder: (context, snapshot) {
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+        final tip = snapshot.data ?? 'Believe in yourself and take one small step towards your goal today.';
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.secondaryAccent.withValues(alpha: 0.1),
-            isDarkMode ? AppColors.glassWhite : Colors.white,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondaryAccent.withValues(alpha: 0.2)),
-        boxShadow: isDarkMode ? null : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDarkMode ? AppColors.cardBg : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.primaryAccent.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              )
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.lightbulb_rounded, color: AppColors.highlight, size: 20),
-              const SizedBox(width: 8),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryAccent, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'MindBloom AI Coach',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (isLoading)
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
               Text(
-                'AI Suggestions',
+                isLoading ? 'Thinking...' : '"$tip"',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                  height: 1.4,
                   color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          ...suggestions.map((s) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  margin: const EdgeInsets.only(top: 6),
-                  decoration: const BoxDecoration(
-                    color: AppColors.primaryAccent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    s,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          )),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildRecentActivity(
       BuildContext context, List<AnalysisResult> analyses, bool isDarkMode) {
-    if (analyses.isEmpty) return const SizedBox.shrink();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -800,24 +892,62 @@ class DashboardScreen extends ConsumerWidget {
                 color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
               ),
             ),
-            GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ReportScreen()),
-              ),
-              child: const Text(
-                'View Report',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.secondaryAccent,
-                  fontWeight: FontWeight.w500,
+            if (analyses.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  // Navigate to all activity
+                },
+                child: Text(
+                  'See All',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.primaryAccent,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 12),
-        ...analyses.take(3).map((a) => _activityTile(a, isDarkMode)),
+        if (analyses.isEmpty)
+           Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+            decoration: BoxDecoration(
+              color: isDarkMode ? AppColors.glassWhite : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.history_toggle_off_rounded,
+                  color: isDarkMode ? Colors.white24 : Colors.black12,
+                  size: 40,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'No activity yet',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Your recent reflections and AI insights will appear here.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...analyses.take(3).map((a) => _activityTile(a, isDarkMode)),
       ],
     );
   }

@@ -63,15 +63,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen>
     _waveformController = AnimationController(
       duration: const Duration(milliseconds: 100),
       vsync: this,
-    )..addListener(() {
-        if (_isRecording) {
-            setState(() {
-              for (int i = 0; i < _waveformValues.length; i++) {
-                _waveformValues[i] = 0.1 + (0.8 * (DateTime.now().millisecondsSinceEpoch % (1000 + i*100) / (1000 + i*100)));
-              }
-            });
-        }
-      });
+    );
     
     _journalController.addListener(_onTextChanged);
     _initSpeech();
@@ -148,20 +140,37 @@ class _RecordScreenState extends ConsumerState<RecordScreen>
 
     if (_isRecording) {
       await _speechToText.stop();
-      _waveformController.stop();
-      setState(() => _isRecording = false);
+      setState(() {
+        _isRecording = false;
+        // Reset waveform values
+        for (int i = 0; i < _waveformValues.length; i++) {
+          _waveformValues[i] = 0.1;
+        }
+      });
     } else {
       setState(() {
         _isRecording = true;
         _recordedText = '';
       });
-      _waveformController.repeat();
       
       await _speechToText.listen(
         onResult: (result) {
           setState(() {
             _recordedText = result.recognizedWords;
           });
+        },
+        onSoundLevelChange: (level) {
+          if (_isRecording) {
+            setState(() {
+              // Shift values to the left and add new sound level info
+              for (int i = 0; i < _waveformValues.length - 1; i++) {
+                _waveformValues[i] = _waveformValues[i + 1];
+              }
+              // Normalized level (usually -10 to 10 for speech_to_text)
+              double normalized = (level + 2).clamp(0.1, 10.0) / 10.0;
+              _waveformValues[_waveformValues.length - 1] = normalized;
+            });
+          }
         },
         listenFor: const Duration(minutes: 5),
         pauseFor: const Duration(seconds: 10),
@@ -296,122 +305,228 @@ class _RecordScreenState extends ConsumerState<RecordScreen>
     final isDarkMode = ref.watch(settingsProvider).isDarkMode;
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: isDarkMode ? AppColors.darkGradient : AppColors.lightGradient,
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!_isFocusMode) ...[
-                  Text(
-                    'Record Your Thoughts',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Express yourself through voice or text',
-                    style: TextStyle(
-                      fontSize: 15, 
-                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildPromptCarousel(isDarkMode),
-                  const SizedBox(height: 24),
-                ],
-                if (_isFocusMode)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: isDarkMode ? AppColors.darkGradient : AppColors.lightGradient,
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!_isFocusMode) ...[
                       Text(
-                        'Deep Reflection',
+                        'Record Your Thoughts',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryAccent,
+                          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
                         ),
                       ),
-                      TextButton(
-                        onPressed: () => setState(() => _isFocusMode = false),
-                        child: const Text('Exit Focus'),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Express yourself through voice or text',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark
+                        ),
                       ),
+                      const SizedBox(height: 24),
+                      _buildPromptCarousel(isDarkMode),
+                      const SizedBox(height: 24),
                     ],
-                  ).animate().fadeIn(),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    if (!_isFocusMode) Expanded(child: _buildInputToggle(isDarkMode)),
-                    if (!_isFocusMode) const SizedBox(width: 12),
-                    _buildGrowthIndicator(isDarkMode),
+                    if (_isFocusMode)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Deep Reflection',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryAccent,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => setState(() => _isFocusMode = false),
+                            child: const Text('Exit Focus'),
+                          ),
+                        ],
+                      ).animate().fadeIn(),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (!_isFocusMode) Expanded(child: _buildInputToggle(isDarkMode)),
+                        if (!_isFocusMode) const SizedBox(width: 12),
+                        _buildPassiveToggle(ref, isDarkMode),
+                        const SizedBox(width: 8),
+                        _buildGrowthIndicator(isDarkMode),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    if (_selectedInputTab == 0)
+                      _buildJournalInput(isDarkMode)
+                    else
+                      _buildVoiceInput(isDarkMode),
+                    const SizedBox(height: 24),
+                    _buildMoodSelector(isDarkMode),
+                    const SizedBox(height: 32),
+                    // Analyze button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: analysisState.isAnalyzing ? null : _analyzeInput,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: analysisState.isAnalyzing
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text('Analyzing...'),
+                                ],
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.psychology_rounded, size: 22),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Analyze My Input',
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ).animate().fadeIn(duration: 400.ms).scale(delay: 100.ms),
+                    const SizedBox(height: 100),
                   ],
                 ),
-                const SizedBox(height: 24),
-                if (_selectedInputTab == 0)
-                  _buildJournalInput(isDarkMode)
-                else
-                  _buildVoiceInput(isDarkMode),
-                const SizedBox(height: 24),
-                _buildMoodSelector(isDarkMode),
-                const SizedBox(height: 32),
-                // Analyze button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: analysisState.isAnalyzing ? null : _analyzeInput,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: analysisState.isAnalyzing
-                        ? const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation(Colors.white),
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              Text('Analyzing...'),
-                            ],
-                          )
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.psychology_rounded, size: 22),
-                              SizedBox(width: 10),
-                              Text(
-                                'Analyze My Input',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ).animate().fadeIn(duration: 400.ms).scale(delay: 100.ms),
-                const SizedBox(height: 100),
-              ],
+              ),
             ),
           ),
+        ).animate().fadeIn(),
+        if (analysisState.isAnalyzing) _buildNeuralOverlay(isDarkMode),
+      ],
+    );
+  }
+
+  Widget _buildPassiveToggle(WidgetRef ref, bool isDarkMode) {
+    final isPassive = ref.watch(settingsProvider).isPassiveMode;
+    return GestureDetector(
+      onTap: () {
+        ref.read(settingsProvider.notifier).togglePassiveMode();
+        HapticFeedback.mediumImpact();
+      },
+      child: AnimatedContainer(
+        duration: 200.ms,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isPassive ? Colors.green.withValues(alpha: 0.1) : (isDarkMode ? AppColors.cardBg : AppColors.cardBgLightGray.withValues(alpha: 0.3)),
+          shape: BoxShape.circle,
+          border: Border.all(color: isPassive ? Colors.green.withValues(alpha: 0.5) : (isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark)),
+        ),
+        child: Icon(
+          isPassive ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+          size: 16,
+          color: isPassive ? Colors.green : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNeuralOverlay(bool isDarkMode) {
+    return Container(
+      color: Colors.black.withValues(alpha: 0.8),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Neural Grid Animation
+            SizedBox(
+              width: 200,
+              height: 200,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  ...List.generate(12, (index) {
+                    return RotationTransition(
+                      turns: AlwaysStoppedAnimation(index / 12),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Container(
+                          width: 4,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryAccent,
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [
+                              BoxShadow(color: AppColors.primaryAccent.withValues(alpha: 0.5), blurRadius: 10),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).animate(onPlay: (controller) => controller.repeat())
+                    .rotate(duration: 3.seconds, curve: Curves.linear),
+                  
+                  // Inner pulsing brain icon
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                      border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: const Icon(Icons.psychology_rounded, size: 40, color: AppColors.primaryAccent),
+                  ).animate(onPlay: (c) => c.repeat(reverse: true))
+                   .scale(begin: const Offset(0.9, 0.9), end: const Offset(1.1, 1.1), duration: 1.seconds),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'NEURAL ENGINE ANALYZING',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2.5,
+              ),
+            ).animate(onPlay: (c) => c.repeat(reverse: true)).fadeOut(duration: 800.ms),
+            const SizedBox(height: 12),
+            Text(
+              'Decrypting emotional resonance and behavior patterns...',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 12,
+              ),
+            ).animate().fadeIn(delay: 500.ms),
+          ],
         ),
       ),
     ).animate().fadeIn();
@@ -486,13 +601,19 @@ class _RecordScreenState extends ConsumerState<RecordScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? Colors.white : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      color: isSelected ? Colors.white : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark),
+                    ),
+                  ),
                 ),
               ),
               if (isVoiceLocked) ...[
