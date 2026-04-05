@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/models/models.dart';
 import '../../report/screens/report_screen.dart';
+import '../../settings/screens/notifications_screen.dart';
+import '../../gamification/screens/behavior_game_screen.dart';
 
 /// Main dashboard showing positivity score, insights, and weekly trends
 class DashboardScreen extends ConsumerWidget {
@@ -40,17 +43,21 @@ class DashboardScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
-                        _buildHeader(user, isDarkMode),
-                        const SizedBox(height: 24),
-                        _buildScoreCard(dashboard.todayReport, isDarkMode),
+                        _buildHeader(context, user, isDarkMode),
                         const SizedBox(height: 20),
-                        _buildStreakCard(dashboard.streakInfo, isDarkMode),
+                        _buildDailyNudge(user, isDarkMode).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1),
+                        const SizedBox(height: 16),
+                        _buildScoreCard(dashboard.todayReport, isDarkMode).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1),
                         const SizedBox(height: 20),
-                        _buildWeeklyChart(dashboard.weeklyInsights, isDarkMode),
+                        _buildStreakCard(user, isDarkMode).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
                         const SizedBox(height: 20),
-                        _buildSuggestionsCard(dashboard.todayReport, isDarkMode),
+                        _buildWeeklyChart(dashboard.weeklyInsights, isDarkMode).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1),
                         const SizedBox(height: 20),
-                        _buildRecentActivity(context, dashboard.recentAnalyses, isDarkMode),
+                        _buildSuggestionsCard(dashboard.todayReport, isDarkMode).animate().fadeIn(delay: 500.ms).slideY(begin: 0.1),
+                        const SizedBox(height: 16),
+                        _buildRecentActivity(context, dashboard.recentAnalyses, isDarkMode).animate().fadeIn(delay: 600.ms).slideY(begin: 0.1),
+                        const SizedBox(height: 20),
+                        _buildGameCard(context, isDarkMode).animate().fadeIn(delay: 700.ms).slideY(begin: 0.1),
                         const SizedBox(height: 100),
                       ],
                     ),
@@ -88,7 +95,73 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeader(UserModel? user, bool isDarkMode) {
+  Widget _buildDailyNudge(UserModel? user, bool isDarkMode) {
+    // Calculate level progress (e.g., 100 points per level)
+    final pointsInCurrentLevel = (user?.totalPoints ?? 0) % 100;
+    final progress = pointsInCurrentLevel / 100.0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDarkMode ? AppColors.glassWhite : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primaryAccent.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.bolt_rounded, color: AppColors.primaryAccent, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Level ${user?.level ?? 1} Progress',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
+                      ),
+                    ),
+                    Text(
+                      '${(progress * 100).toInt()}%',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryAccent,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: isDarkMode ? AppColors.cardBgLight : AppColors.cardBgLightGray,
+                    valueColor: const AlwaysStoppedAnimation(AppColors.primaryAccent),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, UserModel? user, bool isDarkMode) {
     return Row(
       children: [
         // Avatar
@@ -98,19 +171,27 @@ class DashboardScreen extends ConsumerWidget {
           decoration: BoxDecoration(
             gradient: AppColors.blueGradient,
             shape: BoxShape.circle,
+            image: user?.photoUrl.isNotEmpty == true
+                ? DecorationImage(
+                    image: NetworkImage(user!.photoUrl),
+                    fit: BoxFit.cover,
+                  )
+                : null,
           ),
-          child: Center(
-            child: Text(
-              user?.displayName.isNotEmpty == true
-                  ? user!.displayName[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
+          child: user?.photoUrl.isEmpty == true 
+            ? Center(
+                child: Text(
+                  user?.displayName.isNotEmpty == true
+                      ? user!.displayName[0].toUpperCase()
+                      : 'P',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+            : null,
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -118,7 +199,7 @@ class DashboardScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Hello, ${user?.displayName ?? 'User'}! 👋',
+                'Hello, ${user?.displayName.isNotEmpty == true ? user!.displayName : 'Positivity User'}! 👋',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -137,36 +218,110 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
         // Notification bell
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: isDarkMode ? AppColors.glassWhite : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
-            boxShadow: isDarkMode ? null : [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-              )
-            ],
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NotificationsScreen()),
           ),
-          child: Icon(
-            Icons.notifications_none_rounded,
-            color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
-            size: 22,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isDarkMode ? AppColors.glassWhite : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
+              boxShadow: isDarkMode ? null : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                )
+              ],
+            ),
+            child: Icon(
+              Icons.notifications_none_rounded,
+              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
+              size: 22,
+            ),
           ),
         ),
       ],
     );
   }
 
+  Widget _buildGameCard(BuildContext context, bool isDarkMode) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primaryAccent,
+            AppColors.primaryAccent.withValues(alpha: 0.8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryAccent.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Daily Mindset Challenge',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Test your logic and earn +EXP',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BehaviorGameScreen()),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.primaryAccent,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Play Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.psychology_rounded, size: 64, color: Colors.white24),
+        ],
+      ),
+    );
+  }
+
   Widget _buildScoreCard(DailyReport? report, bool isDarkMode) {
     final score = report?.averageScore ?? 0;
     final sentiment = report?.dominantSentiment ?? 'neutral';
+    final hasData = report != null && report.entriesCount > 0;
 
     Color scoreColor;
-    if (score >= 70) {
+    if (!hasData) {
+      scoreColor = AppColors.textSecondary;
+    } else if (score >= 70) {
       scoreColor = AppColors.positive;
     } else if (score >= 40) {
       scoreColor = AppColors.highlight;
@@ -198,69 +353,97 @@ class DashboardScreen extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          Text(
-            "Today's Positivity Score",
-            style: TextStyle(
-              fontSize: 16,
-              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryAccent,
+                  shape: BoxShape.circle,
+                ),
+              ).animate(onPlay: (controller) => controller.repeat())
+                .scale(duration: 1.seconds, curve: Curves.easeInOut)
+                .fadeOut(duration: 1.seconds, curve: Curves.easeInOut),
+              const SizedBox(width: 8),
+              Text(
+                hasData ? "Today's Positivity Score" : "Waiting for First Entry",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           // Animated score
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: score.toDouble()),
-            duration: const Duration(milliseconds: 1500),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, _) {
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 160,
-                    height: 160,
-                    child: CircularProgressIndicator(
-                      value: 1,
-                      strokeWidth: 10,
-                      strokeCap: StrokeCap.round,
-                      color: isDarkMode ? AppColors.cardBgLight : AppColors.cardBgLightGray,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 160,
-                    height: 160,
-                    child: CircularProgressIndicator(
-                      value: value / 100,
-                      strokeWidth: 10,
-                      strokeCap: StrokeCap.round,
-                      color: scoreColor,
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${value.toInt()}',
-                        style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: scoreColor,
-                        ),
+          if (hasData)
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: score.toDouble()),
+              duration: const Duration(milliseconds: 1500),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) {
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 160,
+                      height: 160,
+                      child: CircularProgressIndicator(
+                        value: 1,
+                        strokeWidth: 10,
+                        strokeCap: StrokeCap.round,
+                        color: isDarkMode ? AppColors.cardBgLight : AppColors.cardBgLightGray,
                       ),
-                      Text(
-                        sentiment.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: scoreColor.withValues(alpha: 0.8),
-                          letterSpacing: 1.5,
-                        ),
+                    ),
+                    SizedBox(
+                      width: 160,
+                      height: 160,
+                      child: CircularProgressIndicator(
+                        value: value / 100,
+                        strokeWidth: 10,
+                        strokeCap: StrokeCap.round,
+                        color: scoreColor,
                       ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${value.toInt()}',
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: scoreColor,
+                          ),
+                        ),
+                        Text(
+                          sentiment.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: scoreColor.withValues(alpha: 0.8),
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            )
+          else
+            Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDarkMode ? AppColors.cardBgLight : AppColors.cardBgLightGray,
+              ),
+              child: const Icon(Icons.psychology_rounded, size: 64, color: AppColors.textSecondary),
+            ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -299,10 +482,10 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStreakCard(Map<String, dynamic> streakInfo, bool isDarkMode) {
-    final streak = streakInfo['currentStreak'] ?? 0;
-    final level = streakInfo['level'] ?? 1;
-    final points = streakInfo['points'] ?? 0;
+  Widget _buildStreakCard(UserModel? user, bool isDarkMode) {
+    final streak = user?.streak ?? 0;
+    final level = user?.level ?? 1;
+    final points = user?.totalPoints ?? 0;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -392,8 +575,25 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           SizedBox(
             height: 180,
-            child: LineChart(
-              LineChartData(
+            child: data.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.auto_graph_rounded, color: isDarkMode ? Colors.white10 : Colors.black12, size: 40),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Waiting for your first entry...',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : LineChart(
+                    LineChartData(
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,

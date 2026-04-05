@@ -33,11 +33,14 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   @override
   Widget build(BuildContext context) {
     final streakInfo = ref.watch(dashboardProvider).streakInfo;
+    final isDarkMode = ref.watch(settingsProvider).isDarkMode;
 
     return Scaffold(
-      backgroundColor: AppColors.primaryBg,
+      backgroundColor: isDarkMode ? AppColors.primaryBg : Colors.white,
       body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.darkGradient),
+        decoration: BoxDecoration(
+          gradient: isDarkMode ? AppColors.darkGradient : AppColors.lightGradient,
+        ),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -45,44 +48,47 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Insights',
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Track your positivity journey',
-                  style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+                  ),
                 ),
 
                 const SizedBox(height: 24),
 
                 // Period toggle
-                _buildPeriodToggle(),
+                _buildPeriodToggle(isDarkMode),
 
                 const SizedBox(height: 20),
 
                 // Line Chart
-                _buildLineChart(),
+                _buildLineChart(isDarkMode),
 
                 const SizedBox(height: 20),
 
                 // Bar Chart
-                _buildBarChart(),
+                _buildBarChart(isDarkMode),
 
                 const SizedBox(height: 20),
 
                 // Behavior Summary
-                _buildBehaviorSummary(),
+                _buildBehaviorSummary(isDarkMode),
 
                 const SizedBox(height: 20),
 
                 // Gamification Section
-                _buildGamification(streakInfo),
+                _buildGamification(streakInfo, isDarkMode),
 
                 const SizedBox(height: 100),
               ],
@@ -93,24 +99,24 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildPeriodToggle() {
+  Widget _buildPeriodToggle(bool isDarkMode) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.cardBg,
+        color: isDarkMode ? AppColors.cardBg : Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.glassBorder),
+        border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
       ),
       child: Row(
         children: [
-          _periodTab('Weekly', 0),
-          _periodTab('Monthly', 1),
+          _periodTab('Weekly', 0, isDarkMode),
+          _periodTab('Monthly', 1, isDarkMode),
         ],
       ),
     );
   }
 
-  Widget _periodTab(String label, int index) {
+  Widget _periodTab(String label, int index, bool isDarkMode) {
     final isSelected = _selectedPeriod == index;
     return Expanded(
       child: GestureDetector(
@@ -128,7 +134,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
             style: TextStyle(
               fontSize: 15,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected ? Colors.white : AppColors.textSecondary,
+              color: isSelected 
+                  ? Colors.white 
+                  : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark),
             ),
           ),
         ),
@@ -136,14 +144,14 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildLineChart() {
+  Widget _buildLineChart(bool isDarkMode) {
     final data = _currentData;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.glassWhite,
+        color: isDarkMode ? AppColors.glassWhite : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.glassBorder),
+        border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,12 +161,12 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               Icon(Icons.show_chart_rounded,
                   color: AppColors.primaryAccent, size: 20),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Positivity Trend',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
                 ),
               ),
             ],
@@ -204,7 +212,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                                   ? DateFormat('E').format(data[idx].date)
                                   : DateFormat('d').format(data[idx].date),
                               style: TextStyle(
-                                  fontSize: 10, color: AppColors.textSecondary),
+                                fontSize: 10,
+                                color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+                              ),
                             ),
                           );
                         }
@@ -259,16 +269,16 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildBarChart() {
+  Widget _buildBarChart(bool isDarkMode) {
     final data =
         _selectedPeriod == 0 ? _weeklyData : _monthlyData.take(7).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.glassWhite,
+        color: isDarkMode ? AppColors.glassWhite : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.glassBorder),
+        border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,12 +288,12 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               Icon(Icons.bar_chart_rounded,
                   color: AppColors.secondaryAccent, size: 20),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Score Distribution',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
                 ),
               ),
             ],
@@ -313,7 +323,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                       getTitlesWidget: (value, _) => Text(
                         '${value.toInt()}',
                         style: TextStyle(
-                            fontSize: 10, color: AppColors.textSecondary),
+                          fontSize: 10,
+                          color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+                        ),
                       ),
                     ),
                   ),
@@ -328,7 +340,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                             child: Text(
                               DateFormat('E').format(data[idx].date),
                               style: TextStyle(
-                                  fontSize: 10, color: AppColors.textSecondary),
+                                fontSize: 10,
+                                color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+                              ),
                             ),
                           );
                         }
@@ -365,7 +379,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                         backDrawRodData: BackgroundBarChartRodData(
                           show: true,
                           toY: 100,
-                          color: AppColors.cardBgLight.withValues(alpha: 0.3),
+                          color: isDarkMode ? AppColors.cardBgLight.withValues(alpha: 0.3) : AppColors.cardBgLightGray.withValues(alpha: 0.3),
                         ),
                       ),
                     ],
@@ -379,7 +393,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildBehaviorSummary() {
+  Widget _buildBehaviorSummary(bool isDarkMode) {
     final data = _currentData;
     final avgScore =
         data.isEmpty ? 0 : data.map((d) => d.score).reduce((a, b) => a + b) ~/ data.length;
@@ -391,33 +405,33 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.glassWhite,
+        color: isDarkMode ? AppColors.glassWhite : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.glassBorder),
+        border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Behavior Summary',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
             ),
           ),
           const SizedBox(height: 16),
           _summaryRow('Average Score', '$avgScore/100',
-              avgScore >= 60 ? AppColors.positive : AppColors.highlight),
-          _summaryRow('Positive Days', '$positiveCount', AppColors.positive),
-          _summaryRow('Negative Days', '$negativeCount', AppColors.negative),
-          _summaryRow('Total Entries', '${data.length}', AppColors.secondaryAccent),
+              avgScore >= 60 ? AppColors.positive : AppColors.highlight, isDarkMode),
+          _summaryRow('Positive Days', '$positiveCount', AppColors.positive, isDarkMode),
+          _summaryRow('Negative Days', '$negativeCount', AppColors.negative, isDarkMode),
+          _summaryRow('Total Entries', '${data.length}', AppColors.secondaryAccent, isDarkMode),
         ],
       ),
     );
   }
 
-  Widget _summaryRow(String label, String value, Color color) {
+  Widget _summaryRow(String label, String value, Color color, bool isDarkMode) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -425,7 +439,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+            ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -447,7 +464,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildGamification(Map<String, dynamic> streakInfo) {
+  Widget _buildGamification(Map<String, dynamic> streakInfo, bool isDarkMode) {
     final level = streakInfo['level'] ?? 1;
     final points = streakInfo['points'] ?? 0;
     final nextLevel = streakInfo['nextLevelPoints'] ?? 1000;
@@ -474,12 +491,12 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
             children: [
               const Text('🏆', style: TextStyle(fontSize: 22)),
               const SizedBox(width: 10),
-              const Text(
+              Text(
                 'Gamification',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
                 ),
               ),
               const Spacer(),
@@ -512,7 +529,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     '$points / $nextLevel XP',
                     style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
                     ),
                   ),
                   Text(
@@ -531,7 +548,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                 child: LinearProgressIndicator(
                   value: progress,
                   minHeight: 10,
-                  backgroundColor: AppColors.cardBgLight,
+                  backgroundColor: isDarkMode ? AppColors.cardBgLight : AppColors.cardBgLightGray,
                   valueColor:
                       const AlwaysStoppedAnimation(AppColors.highlight),
                 ),
@@ -543,10 +560,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _achievement('🔥', 'Streak Master', true),
-              _achievement('📝', 'Daily Writer', true),
-              _achievement('🧘', 'Zen Mode', false),
-              _achievement('💎', 'Premium', false),
+          _achievement('🔥', 'Streak Master', true, isDarkMode),
+          _achievement('📝', 'Daily Writer', true, isDarkMode),
+          _achievement('🧘', 'Zen Mode', false, isDarkMode),
+          _achievement('💎', 'Premium', false, isDarkMode),
             ],
           ),
         ],
@@ -554,7 +571,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _achievement(String emoji, String label, bool unlocked) {
+  Widget _achievement(String emoji, String label, bool unlocked, bool isDarkMode) {
     return Opacity(
       opacity: unlocked ? 1.0 : 0.35,
       child: Column(
@@ -565,12 +582,12 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
             decoration: BoxDecoration(
               color: unlocked
                   ? AppColors.highlight.withValues(alpha: 0.15)
-                  : AppColors.cardBgLight,
+                  : (isDarkMode ? AppColors.cardBgLight : AppColors.cardBgLightGray),
               shape: BoxShape.circle,
               border: Border.all(
                 color: unlocked
                     ? AppColors.highlight.withValues(alpha: 0.3)
-                    : AppColors.glassBorder,
+                    : (isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
               ),
             ),
             child: Center(
@@ -582,7 +599,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
             label,
             style: TextStyle(
               fontSize: 10,
-              color: AppColors.textSecondary,
+              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
             ),
           ),
         ],

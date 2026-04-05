@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MindBloom AI needs microphone access to transcribe your thoughts into text.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>MindBloom AI needs speech recognition access to understand your voice recordings.</string>
 </dict>
 </plist>

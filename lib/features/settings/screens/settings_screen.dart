@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
+import '../../../core/models/models.dart';
 import '../../../core/widgets/loading_overlay.dart';
 import '../../auth/screens/auth_screen.dart';
 import '../widgets/chatbot_sheet.dart';
 import 'edit_profile_screen.dart';
+import 'security_screen.dart';
+import 'language_screen.dart';
+import '../../subscription/screens/subscription_screen.dart';
 
 /// Settings screen with privacy controls, premium, and profile management
 class SettingsScreen extends ConsumerWidget {
@@ -68,7 +72,10 @@ class SettingsScreen extends ConsumerWidget {
                         Icons.security_rounded,
                         AppColors.secondaryAccent,
                         isDarkMode,
-                        () => _showSnackBar(context, 'Security settings coming soon'),
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AccountSecurityScreen()),
+                        ),
                       ),
                     ], isDarkMode),
 
@@ -80,8 +87,8 @@ class SettingsScreen extends ConsumerWidget {
                     const SizedBox(height: 20),
 
                     // Premium Card
-                    if (!settings.isPremium) _buildPremiumCard(ref, isDarkMode),
-                    if (!settings.isPremium) const SizedBox(height: 20),
+                    if (user?.subscriptionTier == SubscriptionTier.seedling) _buildPremiumCard(context, ref, isDarkMode),
+                    if (user?.subscriptionTier == SubscriptionTier.seedling) const SizedBox(height: 20),
 
                     // Privacy & Permissions
                     _buildSection('Privacy & Permissions', [
@@ -93,17 +100,31 @@ class SettingsScreen extends ConsumerWidget {
                         isDarkMode,
                         () => ref.read(settingsProvider.notifier).toggleTracking(),
                       ),
+                    ], isDarkMode),
+
+                    const SizedBox(height: 20),
+
+                    // Nudges & Mindset Alerts
+                    _buildSection('Nudges & Mindset Alerts', [
                       _settingsToggle(
-                        'Notifications',
-                        'Daily reminders and insights',
-                        Icons.notifications_none_rounded,
+                        'Daily Mindset Reminders',
+                        'Start your day with positivity',
+                        Icons.wb_sunny_outlined,
                         settings.notificationsEnabled,
                         isDarkMode,
                         () => ref.read(settingsProvider.notifier).toggleNotifications(),
                       ),
                       _settingsToggle(
+                        'AI Behavioral Insights',
+                        'Deep analysis of your thoughts',
+                        Icons.insights_outlined,
+                        settings.trackingEnabled,
+                        isDarkMode,
+                        () => ref.read(settingsProvider.notifier).toggleTracking(),
+                      ),
+                      _settingsToggle(
                         'Islamic Content',
-                        'Show Quran verses and Hadith',
+                        'Weekly Quran and Hadith nudges',
                         Icons.auto_stories_rounded,
                         settings.islamicContentEnabled,
                         isDarkMode,
@@ -129,7 +150,10 @@ class SettingsScreen extends ConsumerWidget {
                         Icons.language_rounded,
                         AppColors.secondaryAccent,
                         isDarkMode,
-                        () => _showSnackBar(context, 'Language support coming soon'),
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const LanguageScreen()),
+                        ),
                       ),
                     ], isDarkMode),
 
@@ -207,9 +231,9 @@ class SettingsScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
+                          children: const [
                             Icon(Icons.logout_rounded, color: AppColors.negative, size: 20),
                             SizedBox(width: 10),
                             Text(
@@ -238,7 +262,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildProfileCard(BuildContext context, dynamic user, bool isDarkMode) {
+  Widget _buildProfileCard(BuildContext context, UserModel? user, bool isDarkMode) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -271,8 +295,8 @@ class SettingsScreen extends ConsumerWidget {
             child: user?.photoUrl.isEmpty == true
                 ? Center(
                     child: Text(
-                      user?.displayName?.isNotEmpty == true
-                          ? user.displayName[0].toUpperCase()
+                      user?.displayName.isNotEmpty == true
+                          ? user!.displayName[0].toUpperCase()
                           : '?',
                       style: TextStyle(
                         fontSize: 28,
@@ -306,14 +330,6 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-            ),
-            icon: const Icon(Icons.edit_note_rounded,
-                color: AppColors.primaryAccent, size: 28),
           ),
         ],
       ),
@@ -387,96 +403,76 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPremiumCard(WidgetRef ref, bool isDarkMode) {
+  Widget _buildPremiumCard(BuildContext context, WidgetRef ref, bool isDarkMode) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.highlight.withValues(alpha: 0.15),
-            isDarkMode ? AppColors.glassWhite : Colors.white,
-          ],
-        ),
+        gradient: AppColors.primaryGradient,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.highlight.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryAccent.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text('👑', style: TextStyle(fontSize: 28)),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.star_rounded, color: Colors.white, size: 20),
+              ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Upgrade to Premium',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Unlock advanced analytics & AI coaching',
-                      style: TextStyle(
-                        fontSize: 13, 
-                        color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark
-                      ),
-                    ),
-                  ],
+              const Text(
+                'Unlock Forest Tier',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Benefits
-          _premiumBenefit('Unlimited daily insights', isDarkMode),
-          _premiumBenefit('Advanced analytics & trends', isDarkMode),
-          _premiumBenefit('AI personal coaching', isDarkMode),
-          _premiumBenefit('Priority support', isDarkMode),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: () => ref.read(settingsProvider.notifier).upgradeToPremium(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.highlight,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text(
-                'Upgrade — \$4.99/month',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+          const SizedBox(height: 12),
+          const Text(
+            'Get unlimited AI reflections, deep behavioral DNA, and custom growth goals.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              height: 1.4,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _premiumBenefit(String text, bool isDarkMode) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle_rounded,
-              color: AppColors.highlight, size: 18),
-          const SizedBox(width: 10),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 14, 
-              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.primaryAccent,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'View Plans',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
@@ -638,9 +634,9 @@ class SettingsScreen extends ConsumerWidget {
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const AuthScreen()),
                     (route) => false,
-                  );
-                }
-              },
+                    );
+                  }
+                },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.negative,
               ),

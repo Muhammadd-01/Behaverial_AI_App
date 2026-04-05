@@ -24,20 +24,24 @@ class _MainShellState extends ConsumerState<MainShell> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    // Load dashboard data on first launch
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = ref.read(authStateProvider).user;
-      if (user != null) {
-        ref.read(dashboardProvider.notifier).loadDashboard(user.uid);
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final currentTab = ref.watch(currentTabProvider);
+
+    // Reactive data loading: Whenever the user signs in, trigger dashboard load.
+    ref.listen(authStateProvider, (previous, next) {
+      if (next.user != null && previous?.user == null) {
+        ref.read(dashboardProvider.notifier).loadDashboard(next.user!.uid);
+      }
+    });
+
+    // Handle persistent login case: if user is already here, ensure data starts loading
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = ref.read(authStateProvider);
+      final dash = ref.read(dashboardProvider);
+      if (auth.user != null && dash.isLoading && dash.todayReport == null) {
+        ref.read(dashboardProvider.notifier).loadDashboard(auth.user!.uid);
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.primaryBg,

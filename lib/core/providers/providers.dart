@@ -14,7 +14,7 @@ import '../services/dummy_data_service.dart';
 
 /// Tracks if the user is logged in via Firebase
 final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
+  return AuthNotifier(ref);
 });
 
 class AuthState {
@@ -53,8 +53,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final Ref _ref;
 
-  AuthNotifier() : super(const AuthState()) {
+  AuthNotifier(this._ref) : super(const AuthState()) {
     _init();
   }
 
@@ -79,9 +80,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
           ...doc.data()!,
           'uid': firebaseUser.uid,
         });
+        _ref.read(settingsProvider.notifier).updateSubscription(userModel.subscriptionTier);
         state = state.copyWith(isLoggedIn: true, user: userModel, isInitialized: true, isLoading: false);
       } else {
-        // Fallback for new users if sync failed during signup
+        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // minSdk = 21
+        // targetSdk = flutter.targetSdkVersion
         final newUser = UserModel(
           uid: firebaseUser.uid,
           email: firebaseUser.email ?? '',
@@ -208,6 +212,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _db.collection('users').doc(uid).delete();
   }
 
+  /// Add experience points and handle leveling up
+  Future<void> addPoints(int points) async {
+    if (state.user == null) return;
+    
+    final currentPoints = state.user!.totalPoints + points;
+    final newLevel = (currentPoints / 100).floor() + 1;
+    
+    final updates = {
+      'totalPoints': currentPoints,
+      'level': newLevel,
+      'lastActiveAt': DateTime.now().toIso8601String(),
+    };
+    
+    await _db.collection('users').doc(state.user!.uid).update(updates);
+    
+    final updatedUser = state.user!.copyWith(
+      totalPoints: currentPoints,
+      level: newLevel,
+      lastActiveAt: DateTime.now(),
+    );
+    
+    state = state.copyWith(user: updatedUser);
+  }
+
   /// Update user profile in Firestore and state
   Future<void> updateProfile({String? name, String? photoUrl}) async {
     if (state.user == null) return;
@@ -218,7 +246,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (name != null) updates['displayName'] = name;
       if (photoUrl != null) updates['photoUrl'] = photoUrl;
       
-      await _db.collection('users').doc(state.user!.uid).update(updates);
+      await _db.collection('users').doc(state.user!.uid).set(updates, SetOptions(merge: true));
       
       final updatedUser = state.user!.copyWith(
         displayName: name ?? state.user!.displayName,
@@ -384,13 +412,25 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
           suggestions: _getSuggestions(avgScore),
         );
       } else {
-        // Fallback with dummy data if no analyses yet
-        todayReport = DummyDataService.getTodayReport(userId);
+        // Fallback with zero/starting state if no analyses yet
+        todayReport = DailyReport(
+          id: 'report_initial',
+          userId: userId,
+          date: now,
+          averageScore: 0,
+          dominantSentiment: 'Neutral',
+          dominantTone: 'Observational',
+          entriesCount: 0,
+          suggestions: [
+            'Welcome to MindBloom AI! Record your first thought to generate your daily positivity score.',
+            'Consistency is key to pattern recognition.',
+          ],
+        );
       }
 
       // Build weekly insights from analyses
       List<InsightData> weeklyInsights;
-      if (recentAnalyses.length >= 3) {
+      if (recentAnalyses.isNotEmpty) {
         final weekStart = now.subtract(const Duration(days: 7));
         weeklyInsights = recentAnalyses
             .where((a) => a.analyzedAt.isAfter(weekStart))
@@ -400,11 +440,8 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
                   sentiment: a.sentiment,
                 ))
             .toList();
-        if (weeklyInsights.isEmpty) {
-          weeklyInsights = DummyDataService.getWeeklyInsights();
-        }
       } else {
-        weeklyInsights = DummyDataService.getWeeklyInsights();
+        weeklyInsights = [];
       }
 
       // Fetch user doc for streak info
@@ -475,7 +512,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
 // ── Analysis State ──
 
 final analysisProvider = StateNotifierProvider<AnalysisNotifier, AnalysisState>((ref) {
-  return AnalysisNotifier();
+  return AnalysisNotifier(ref);
 });
 
 class AnalysisState {
@@ -494,8 +531,9 @@ class AnalysisState {
 
 class AnalysisNotifier extends StateNotifier<AnalysisState> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final Ref _ref;
 
-  AnalysisNotifier() : super(const AnalysisState());
+  AnalysisNotifier(this._ref) : super(const AnalysisState());
 
   /// Analyze user text input and save to Firestore
   Future<void> analyze({
@@ -504,6 +542,20 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
     required String inputType,
     String? imageUrl,
   }) async {
+    // Check daily limits
+    final dashboard = _ref.read(dashboardProvider);
+    final user = _ref.read(authStateProvider).user;
+    final currentEntries = dashboard.todayReport?.entriesCount ?? 0;
+    final limit = user?.subscriptionTier.dailyLimit ?? SubscriptionTier.seedling.dailyLimit;
+
+    if (currentEntries >= limit) {
+      state = const AnalysisState(
+        isAnalyzing: false, 
+        error: 'Daily growth limit reached. Upgrade to unlock more reflections.'
+      );
+      return;
+    }
+
     state = const AnalysisState(isAnalyzing: true);
 
     try {
@@ -530,11 +582,8 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
           .doc(finalResult.id)
           .set(finalResult.toMap());
 
-      // Update user stats
-      await _db.collection('users').doc(userId).update({
-        'lastActiveAt': DateTime.now().toIso8601String(),
-        'totalPoints': FieldValue.increment(result.positivityScore ~/ 10),
-      });
+      // Update user stats and grant points
+      await _ref.read(authStateProvider.notifier).addPoints(result.positivityScore ~/ 10);
 
       state = AnalysisState(
         currentResult: result,
@@ -560,28 +609,28 @@ class SettingsState {
   final bool trackingEnabled;
   final bool notificationsEnabled;
   final bool islamicContentEnabled;
-  final bool isPremium;
+  final SubscriptionTier subscriptionTier;
   final bool isDarkMode;
 
   const SettingsState({
     this.trackingEnabled = true,
     this.notificationsEnabled = true,
     this.islamicContentEnabled = true,
-    this.isPremium = false,
-    this.isDarkMode = false, // Defaults to Light Mode as requested
+    this.subscriptionTier = SubscriptionTier.seedling,
+    this.isDarkMode = false,
   });
 
   SettingsState copyWith({
     bool? trackingEnabled,
     bool? notificationsEnabled,
     bool? islamicContentEnabled,
-    bool? isPremium,
+    SubscriptionTier? subscriptionTier,
     bool? isDarkMode,
   }) => SettingsState(
     trackingEnabled: trackingEnabled ?? this.trackingEnabled,
     notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     islamicContentEnabled: islamicContentEnabled ?? this.islamicContentEnabled,
-    isPremium: isPremium ?? this.isPremium,
+    subscriptionTier: subscriptionTier ?? this.subscriptionTier,
     isDarkMode: isDarkMode ?? this.isDarkMode,
   );
 }
@@ -603,7 +652,9 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   void toggleTracking() => state = state.copyWith(trackingEnabled: !state.trackingEnabled);
   void toggleNotifications() => state = state.copyWith(notificationsEnabled: !state.notificationsEnabled);
   void toggleIslamicContent() => state = state.copyWith(islamicContentEnabled: !state.islamicContentEnabled);
-  void upgradeToPremium() => state = state.copyWith(isPremium: true);
+  void updateSubscription(SubscriptionTier tier) {
+    state = state.copyWith(subscriptionTier: tier);
+  }
 }
 
 

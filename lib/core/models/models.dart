@@ -1,12 +1,29 @@
 // Data models for the MindBloom AI app
 
+enum SubscriptionTier {
+  seedling('Seedling', 3),  // Free: 3/day
+  bloom('Bloom', 15),     // Plus: 15/day
+  forest('Forest', 9999);  // Elite: Unlimited
+
+  final String label;
+  final int dailyLimit;
+  const SubscriptionTier(this.label, this.dailyLimit);
+
+  static SubscriptionTier fromString(String? value) {
+    return SubscriptionTier.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => SubscriptionTier.seedling,
+    );
+  }
+}
+
 // ── User Model ──
 class UserModel {
   final String uid;
   final String email;
   final String displayName;
   final String photoUrl;
-  final bool isPremium;
+  final SubscriptionTier subscriptionTier;
   final int streak;
   final int level;
   final int totalPoints;
@@ -18,7 +35,7 @@ class UserModel {
     required this.email,
     this.displayName = '',
     this.photoUrl = '',
-    this.isPremium = false,
+    this.subscriptionTier = SubscriptionTier.forest,
     this.streak = 0,
     this.level = 1,
     this.totalPoints = 0,
@@ -31,7 +48,7 @@ class UserModel {
     'email': email,
     'displayName': displayName,
     'photoUrl': photoUrl,
-    'isPremium': isPremium,
+    'subscriptionTier': subscriptionTier.name,
     'streak': streak,
     'level': level,
     'totalPoints': totalPoints,
@@ -44,7 +61,7 @@ class UserModel {
     email: map['email'] ?? '',
     displayName: map['displayName'] ?? '',
     photoUrl: map['photoUrl'] ?? '',
-    isPremium: map['isPremium'] ?? false,
+    subscriptionTier: SubscriptionTier.forest, // Temporarily forced for presentation
     streak: map['streak'] ?? 0,
     level: map['level'] ?? 1,
     totalPoints: map['totalPoints'] ?? 0,
@@ -55,7 +72,7 @@ class UserModel {
   UserModel copyWith({
     String? displayName,
     String? photoUrl,
-    bool? isPremium,
+    SubscriptionTier? subscriptionTier,
     int? streak,
     int? level,
     int? totalPoints,
@@ -65,7 +82,7 @@ class UserModel {
     email: email,
     displayName: displayName ?? this.displayName,
     photoUrl: photoUrl ?? this.photoUrl,
-    isPremium: isPremium ?? this.isPremium,
+    subscriptionTier: subscriptionTier ?? this.subscriptionTier,
     streak: streak ?? this.streak,
     level: level ?? this.level,
     totalPoints: totalPoints ?? this.totalPoints,
