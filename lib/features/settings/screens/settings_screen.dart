@@ -324,13 +324,21 @@ class SettingsScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  user?.displayName ?? 'User',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      user?.displayName ?? 'User',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
+                      ),
+                    ),
+                    if (user?.subscriptionTier == SubscriptionTier.forest) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFD700), size: 20),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(

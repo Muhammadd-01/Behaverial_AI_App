@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/widgets/loading_overlay.dart';
-import '../../dashboard/screens/main_shell.dart';
 
 /// Authentication screen with Login/Signup tabs, Email + Google sign-in
 class AuthScreen extends ConsumerStatefulWidget {
@@ -57,7 +56,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       } else {
         await ref.read(authStateProvider.notifier).signUp(email, password, name);
       }
-      if (mounted) _navigateToHome();
     } catch (e) {
       if (mounted) _showSnackBar(_getFirebaseErrorMessage(e.toString()));
     }
@@ -66,9 +64,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   Future<void> _handleGoogleAuth() async {
     try {
       await ref.read(authStateProvider.notifier).loginWithGoogle();
-      if (mounted && ref.read(authStateProvider).isLoggedIn) {
-        _navigateToHome();
-      }
     } catch (e) {
       if (mounted) _showSnackBar(_getFirebaseErrorMessage(e.toString()));
     }
@@ -101,12 +96,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     return 'Something went wrong. Please try again';
   }
 
-  void _navigateToHome() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const MainShell()),
-      (route) => false,
-    );
-  }
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

@@ -78,23 +78,38 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final doc = await _db.collection('users').doc(firebaseUser.uid).get();
       
       if (doc.exists) {
-        final userModel = UserModel.fromMap({
+        UserModel userModel = UserModel.fromMap({
           ...doc.data()!,
           'uid': firebaseUser.uid,
         });
+
+        // SPECIAL ACCESS: For user GeniusAISquad@gmail.com, ensure they always have Forest tier
+        if (firebaseUser.email?.toLowerCase() == 'geniusaisquad@gmail.com' && 
+            userModel.subscriptionTier != SubscriptionTier.forest) {
+          userModel = userModel.copyWith(subscriptionTier: SubscriptionTier.forest);
+          await _db.collection('users').doc(firebaseUser.uid).update({'subscriptionTier': 'forest'});
+        }
+
         _ref.read(settingsProvider.notifier).updateSubscription(userModel.subscriptionTier);
         state = state.copyWith(isLoggedIn: true, user: userModel, isInitialized: true, isLoading: false);
       } else {
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // minSdk = 21
-        // targetSdk = flutter.targetSdkVersion
+        // Create new user with special access check
+        final tier = firebaseUser.email?.toLowerCase() == 'geniusaisquad@gmail.com' 
+            ? SubscriptionTier.forest 
+            : SubscriptionTier.seedling;
+
         final newUser = UserModel(
           uid: firebaseUser.uid,
           email: firebaseUser.email ?? '',
           displayName: firebaseUser.displayName ?? firebaseUser.email?.split('@').first ?? 'User',
+          subscriptionTier: tier,
           createdAt: DateTime.now(),
           lastActiveAt: DateTime.now(),
         );
+        
+        // Save if it's a new user from Google/External
+        await _db.collection('users').doc(firebaseUser.uid).set(newUser.toMap());
+        
         state = state.copyWith(isLoggedIn: true, user: newUser, isInitialized: true, isLoading: false);
       }
     } catch (e) {
@@ -208,10 +223,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Sign out
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
-    await Future.delayed(const Duration(milliseconds: 800)); // Smooth transition
-    await _auth.signOut();
-    await _googleSignIn.signOut();
-    state = const AuthState(isLoggedIn: false, isInitialized: true);
+    try {
+      await _auth.signOut();
+      await _googleSignIn.signOut();
+      
+      // Reset state completely but keep isInitialized true
+      state = const AuthState(
+        isLoggedIn: false, 
+        isInitialized: true, 
+        isLoading: false
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
   }
 
   /// Send password reset email
@@ -298,7 +322,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         source: source,
         maxWidth: 512,
         maxHeight: 512,
-        imageQuality: 75,
+        imageQuality: 85, // Slightly higher quality
       );
       
       if (image == null) return;
@@ -323,7 +347,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         fileOptions: const FileOptions(
           cacheControl: '3600', 
           upsert: true,
-          contentType: 'image/jpeg',
+          contentType: 'image/jpeg', // Essential for some RLS setups
         ),
       );
 
@@ -340,12 +364,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (kDebugMode) print('❌ Supabase Profile Upload Error: $e');
       state = state.copyWith(isLoading: false, error: 'Upload failed: ${e.toString()}');
       
-      // Friendly message with technical hint for developer
+      // Detailed error for RLS
       String errorMsg = 'Image upload failed. ';
-      if (e.toString().contains('403')) {
+      if (e.toString().contains('403') || e.toString().contains('row-level security')) {
         errorMsg += 'Check Supabase RLS Policies for "anon" role.';
       } else {
-        errorMsg += 'Please check your connection.';
+        errorMsg += 'Technical details: ${e.toString()}';
       }
       
       AppNotifications.show(null, message: errorMsg, type: NotificationType.error);
@@ -384,7 +408,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         fileOptions: const FileOptions(
           cacheControl: '3600', 
           upsert: true,
-          contentType: 'image/jpeg',
+          contentType: 'image/jpeg', // Explicitly set to avoid 403 on some policies
         ),
       );
 
@@ -929,3 +953,6 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     state = [...state, ChatMessage(text: response, isUser: false, timestamp: DateTime.now())];
   }
 }
+
+/// Provider to track when the minimum splash animation time has passed
+final splashFinishedProvider = StateProvider<bool>((ref) => false);

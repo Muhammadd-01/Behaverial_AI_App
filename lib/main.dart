@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'features/splash/screens/splash_screen.dart';
+import 'features/auth/screens/auth_screen.dart';
+import 'features/dashboard/screens/main_shell.dart';
+import 'features/onboarding/screens/onboarding_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'core/providers/providers.dart';
@@ -64,7 +67,37 @@ class MindBloomApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: const SplashScreen(),
+      home: const AuthWrapper(),
     );
+  }
+}
+
+/// A reactive wrapper that switches screens based on Auth and App state
+class AuthWrapper extends ConsumerWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authStateProvider);
+    final isOnboardingComplete = ref.watch(onboardingProvider);
+    final isSplashFinished = ref.watch(splashFinishedProvider);
+
+    // 1. Show Splash until initialization is complete AND minimum time has passed
+    if (!authState.isInitialized || !isSplashFinished) {
+      return const SplashScreen();
+    }
+
+    // 2. Show Onboarding if not completed yet
+    if (!isOnboardingComplete) {
+      return const OnboardingScreen();
+    }
+
+    // 3. Show Auth if not logged in
+    if (!authState.isLoggedIn) {
+      return const AuthScreen();
+    }
+
+    // 4. Show Main App
+    return const MainShell();
   }
 }

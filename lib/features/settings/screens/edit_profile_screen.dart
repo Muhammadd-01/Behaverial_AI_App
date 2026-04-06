@@ -258,13 +258,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 fontSize: 14,
                               ),
                             ),
-                            Text(
-                              'Tier: ${user?.subscriptionTier.label ?? "Seedling"}',
-                              style: TextStyle(
-                                color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Row(
+                              children: [
+                                Text(
+                                  'Tier: ${user?.subscriptionTier.label ?? "Seedling"}',
+                                  style: TextStyle(
+                                    color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (user?.subscriptionTier == SubscriptionTier.forest) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFFD700), size: 22),
+                                ],
+                              ],
                             ),
                           ],
                         ),

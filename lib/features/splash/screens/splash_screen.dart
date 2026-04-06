@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
-import '../../onboarding/screens/onboarding_screen.dart';
-import '../../auth/screens/auth_screen.dart';
-import '../../dashboard/screens/main_shell.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Splash screen with animated logo and tagline
@@ -66,60 +63,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       if (mounted) _textController.forward();
     });
 
-    _startWorkflow();
-  }
-
-  void _startWorkflow() async {
-    // Wait for animations and initialization
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    
-    _checkAuthAndNavigate();
-  }
-
-  Future<void> _checkAuthAndNavigate() async {
-    final authState = ref.read(authStateProvider);
-    if (!authState.isInitialized) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      return _checkAuthAndNavigate();
-    }
-
-    final settings = ref.read(settingsProvider);
-    final isOnboardingComplete = ref.read(onboardingProvider);
-    final isLoggedIn = authState.isLoggedIn;
-
-    if (!isOnboardingComplete) {
-      _navigateTo(const OnboardingScreen());
-    } else if (!isLoggedIn) {
-      _navigateTo(const AuthScreen());
-    } else {
-      if (settings.biometricEnabled) {
-        final success = await ref.read(settingsProvider.notifier).authenticateBiometrics();
-        if (success) {
-          _navigateTo(const MainShell());
-        } else {
-          // Stay on splash or show error
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Authentication failed. Please try again.')),
-          );
-          _startWorkflow(); // Retry
-        }
-      } else {
-        _navigateTo(const MainShell());
+    // Signal that splash is finished after minimum animation time
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      if (mounted) {
+        ref.read(splashFinishedProvider.notifier).state = true;
       }
-    }
-  }
-
-  void _navigateTo(Widget screen) {
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => screen,
-        transitionDuration: const Duration(milliseconds: 800),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-      ),
-    );
+    });
   }
 
   @override
