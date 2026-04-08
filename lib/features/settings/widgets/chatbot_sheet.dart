@@ -100,16 +100,38 @@ class _ChatbotSheetState extends ConsumerState<ChatbotSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'AI Positivity Coach',
+                        'MindBloom AI Coach',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
                         ),
                       ),
-                      const Text(
-                        'Online',
-                        style: TextStyle(fontSize: 12, color: AppColors.positive),
+                      Row(
+                        children: [
+                          const Text(
+                            'Online',
+                            style: TextStyle(fontSize: 12, color: AppColors.positive),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.2)),
+                            ),
+                            child: const Text(
+                              'CARP INFORMED',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryAccent,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

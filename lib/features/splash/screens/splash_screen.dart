@@ -86,113 +86,115 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       body: Container(
         decoration: const BoxDecoration(gradient: AppColors.darkGradient),
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Pulse glow behind logo
-              AnimatedBuilder(
-                animation: _pulseScale,
-                builder: (context, child) {
-                  return Container(
-                    width: 160 * _pulseScale.value,
-                    height: 160 * _pulseScale.value,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          AppColors.primaryAccent.withValues(alpha: 0.15),
-                          AppColors.primaryAccent.withValues(alpha: 0.05),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                    child: child,
-                  );
-                },
-                child: ScaleTransition(
-                  scale: _logoScale,
-                  child: FadeTransition(
-                    opacity: _logoOpacity,
-                    child: Container(
-                      width: 120,
-                      height: 120,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Pulse glow behind logo
+                AnimatedBuilder(
+                  animation: _pulseScale,
+                  builder: (context, child) {
+                    return Container(
+                      width: 160 * _pulseScale.value,
+                      height: 160 * _pulseScale.value,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primaryAccent.withValues(alpha: 0.4),
-                            blurRadius: 30,
-                            spreadRadius: 5,
+                        gradient: RadialGradient(
+                          colors: [
+                            AppColors.primaryAccent.withValues(alpha: 0.15),
+                            AppColors.primaryAccent.withValues(alpha: 0.05),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                      child: child,
+                    );
+                  },
+                  child: ScaleTransition(
+                    scale: _logoScale,
+                    child: FadeTransition(
+                      opacity: _logoOpacity,
+                      child: Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryAccent.withValues(alpha: 0.4),
+                              blurRadius: 30,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/app_logo.png',
+                            fit: BoxFit.cover,
                           ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/app_logo.png',
-                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 40),
-
-              // App name and tagline
-              SlideTransition(
-                position: _textSlide,
-                child: FadeTransition(
+  
+                const SizedBox(height: 40),
+  
+                // App name and tagline
+                SlideTransition(
+                  position: _textSlide,
+                  child: FadeTransition(
+                    opacity: _textOpacity,
+                    child: Column(
+                      children: [
+                        const Text(
+                          'MindBloom',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ShaderMask(
+                          shaderCallback: (bounds) =>
+                              AppColors.primaryGradient.createShader(bounds),
+                          child: const Text('MindBloom', style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Nurture your mind,\ngrow your positivity',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: AppColors.textSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+  
+                const SizedBox(height: 60),
+  
+                // Loading spinner
+                FadeTransition(
                   opacity: _textOpacity,
-                  child: Column(
-                    children: [
-                      const Text(
-                        'MindBloom',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -0.5,
-                        ),
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(
+                        AppColors.primaryAccent.withValues(alpha: 0.5),
                       ),
-                      const SizedBox(height: 4),
-                      ShaderMask(
-                        shaderCallback: (bounds) =>
-                            AppColors.primaryGradient.createShader(bounds),
-                        child: const Text('MindBloom', style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Nurture your mind,\ngrow your positivity',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.textSecondary,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 60),
-
-              // Loading spinner
-              FadeTransition(
-                opacity: _textOpacity,
-                child: SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation(
-                      AppColors.primaryAccent.withValues(alpha: 0.5),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

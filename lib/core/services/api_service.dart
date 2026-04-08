@@ -6,17 +6,17 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/models.dart';
 
 /// Service for communicating with MindBloom and Backend
-class ApiService {
+class MindBloomApiService {
   static const String _baseUrl = 'http://localhost:8000';
   
-  // ── Gemini Configuration ──
-  static final String _geminiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+  // ── AI Configuration ──
+  static final String _aiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
   static final _model = GenerativeModel(
-    model: 'gemini-1.5-flash',
-    apiKey: _geminiKey,
+    model: 'gemini-pro',
+    apiKey: _aiKey,
   );
 
-  /// Analyze text input using Real Gemini AI for presentation
+  /// Analyze text input using MindBloom AI
   static Future<AnalysisResult> analyzeText({
     required String text,
     required String userId,
@@ -41,7 +41,7 @@ class ApiService {
       final response = await _model.generateContent(content);
       
       if (response.text != null) {
-        // Find JSON in response (Gemini sometimes adds markdown blocks)
+        // Find JSON in response (AI sometimes adds markdown blocks)
         final jsonStr = response.text!.substring(
           response.text!.indexOf('{'),
           response.text!.lastIndexOf('}') + 1,
@@ -62,7 +62,7 @@ class ApiService {
           analyzedAt: DateTime.now(),
         );
       }
-      throw Exception('Gemini returned empty response');
+      throw Exception('AI returned empty response');
     } catch (e) {
       if (kDebugMode) print('⚠️ MindBloom AI Error: $e. Falling back to Smart Simulation.');
       // Fallback: simulate analysis locally for demo stability
@@ -70,7 +70,7 @@ class ApiService {
     }
   }
 
-  /// Get smart feedback based on analysis (Gemini implementation)
+  /// Get smart feedback based on analysis (MindBloom AI implementation)
   static Future<List<FeedbackItem>> getFeedback({
     required String sentiment,
     required String tone,
@@ -99,14 +99,43 @@ class ApiService {
     }
   }
 
-  /// AI chatbot coach powered by MindBloom
-  static Future<String> chatWithCoach(String message) async {
+  /// AI chatbot coach powered by MindBloom AI with psychological context
+  static Future<String> chatWithCoach(String message, {String? psychologicalContext}) async {
     try {
-      final prompt = 'You are MindBloom Coach. Be empathetic, Islamic-centered where appropriate, and focus on behavioral change. User says: "$message"';
+      final contextPrefix = psychologicalContext != null 
+          ? "User Psychological Context: $psychologicalContext\n\n" 
+          : "";
+          
+      final prompt = '''
+        $contextPrefix
+        You are the MindBloom AI Coach, a supportive behavioral assistant. 
+        Your guidance is informed by the CARP (Collaborative Adaptive Research Platform) framework for psychological behavioral change.
+        
+        Style Guidelines:
+        1. Be empathetic, professional, and warm.
+        2. Use psychological insights to provide actionable behavioral tips.
+        3. If psychological context (like assessment results) is provided above, acknowledge it subtly in your advice.
+        4. Focus on small, achievable "Micro-Challenges" to improve mood and positivity.
+        5. Include brief Islamic wisdom (Quran/Hadith) only if it fits naturally and provides comfort.
+        
+        User's Message: "$message"
+      ''';
+      
       final response = await _model.generateContent([Content.text(prompt)]);
       return response.text ?? _simulateChatResponse(message);
     } catch (e) {
+      if (kDebugMode) print('⚠️ MindBloom AI Coach Error: $e');
       return _simulateChatResponse(message);
+    }
+  }
+  /// General purpose MindBloom AI text generation
+  static Future<String> getRawAIResponse(String prompt) async {
+    try {
+      final response = await _model.generateContent([Content.text(prompt)]);
+      return response.text ?? 'I apologize, but I could not generate an interpretation at this moment.';
+    } catch (e) {
+      if (kDebugMode) print('⚠️ AI Interpretation Error: $e');
+      return 'Interpretation services are currently unavailable. Please try again later.';
     }
   }
 

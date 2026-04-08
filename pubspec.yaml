@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
   
@@ -26,6 +28,7 @@ dependencies:
   shimmer: ^3.0.0
   flutter_animate: ^4.5.2
   percent_indicator: ^4.2.3
+  research_package: ^1.2.0
   
   # Local Storage
   shared_preferences: ^2.3.4

@@ -4,7 +4,6 @@ import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
-import '../../auth/screens/auth_screen.dart';
 
 /// 3-page onboarding flow introducing the app's features
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -61,15 +60,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _navigateToAuth() {
     ref.read(onboardingProvider.notifier).completeOnboarding();
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const AuthScreen(),
-        transitionDuration: const Duration(milliseconds: 800),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-      ),
-    );
   }
 
   @override

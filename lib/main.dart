@@ -11,6 +11,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'core/providers/providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'firebase_options.dart';
 
 void main() async {
   // Ensure Flutter is initialized
@@ -20,7 +22,9 @@ void main() async {
   await dotenv.load(fileName: ".env");
   
   // Initialize Firebase
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   
   // Initialize Supabase
   await Supabase.initialize(
@@ -30,6 +34,13 @@ void main() async {
   
   // Initialize Shared Preferences
   final prefs = await SharedPreferences.getInstance();
+  
+  // ── Orientation Locking ──
+  // Force the app into Portrait Mode only
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   
   // Set system UI overlay style for immersive dark theme
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -67,6 +78,11 @@ class MindBloomApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: const AuthWrapper(),
     );
   }

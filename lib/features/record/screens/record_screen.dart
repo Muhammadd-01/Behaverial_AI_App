@@ -28,7 +28,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen>
   String _recordedText = '';
   String? _attachedImageUrl;
   bool _isUploadingImage = false;
-  int _selectedInputTab = 0; // 0=Journal, 1=Voice
+  int get _selectedInputTab => ref.watch(recordTabProvider);
+  void _setInputTab(int index) => ref.read(recordTabProvider.notifier).state = index;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   bool _isFocusMode = false;
@@ -377,7 +378,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen>
                       ],
                     ),
                     const SizedBox(height: 24),
-                    if (_selectedInputTab == 0)
+                    if (ref.watch(recordTabProvider) == 0)
                       _buildJournalInput(isDarkMode)
                     else
                       _buildVoiceInput(isDarkMode),
@@ -609,7 +610,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen>
           AnimatedAlign(
             duration: 300.ms,
             curve: Curves.easeInOutBack,
-            alignment: _selectedInputTab == 0 ? Alignment.centerLeft : Alignment.centerRight,
+            alignment: ref.watch(recordTabProvider) == 0 ? Alignment.centerLeft : Alignment.centerRight,
             child: FractionallySizedBox(
               widthFactor: 0.5,
               child: Container(
@@ -651,7 +652,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen>
           if (isVoiceLocked) {
              _showPremiumPaywall();
           } else {
-            setState(() => _selectedInputTab = index);
+            _setInputTab(index);
             HapticFeedback.lightImpact();
           }
         },

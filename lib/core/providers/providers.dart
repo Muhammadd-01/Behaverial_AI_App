@@ -7,10 +7,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
-import '../utils/app_notifications.dart';
+import '../utils/app_notifications.dart' as notify;
 
 // ── Auth State ──
 
@@ -68,8 +67,92 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = state.copyWith(isLoggedIn: false, isInitialized: true, isLoading: false);
       } else {
         await _fetchAndSetUser(firebaseUser);
+        _updateStreak(firebaseUser.uid);
       }
     });
+  }
+
+  /// Update streak based on daily activity (Public version for manual trigger)
+  Future<void> updateStreak({String? customUid}) async {
+    final uid = customUid ?? state.user?.uid;
+    if (uid == null) return;
+    
+    final doc = await _db.collection('users').doc(uid).get();
+    if (!doc.exists) return;
+
+    final data = doc.data()!;
+    final lastActiveStr = data['lastActiveAt'];
+    final lastActive = lastActiveStr != null ? DateTime.parse(lastActiveStr) : null;
+    final now = DateTime.now();
+    
+    // If never active before, set to 1
+    if (lastActive == null) {
+      await _db.collection('users').doc(uid).update({
+        'streak': 1,
+        'lastActiveAt': now.toIso8601String(),
+      });
+      state = state.copyWith(user: state.user?.copyWith(streak: 1, lastActiveAt: now));
+      return;
+    }
+
+    // Check if it's a new day
+    if (now.year == lastActive.year && now.month == lastActive.month && now.day == lastActive.day) {
+      // If streak is still 0 (uninitialized or error), force it to 1
+      if ((data['streak'] ?? 0) == 0) {
+        await _db.collection('users').doc(uid).update({
+          'streak': 1,
+          'lastActiveAt': now.toIso8601String(),
+        });
+        state = state.copyWith(user: state.user?.copyWith(streak: 1, lastActiveAt: now));
+      }
+      return; 
+    }
+
+    final yesterday = now.subtract(const Duration(days: 1));
+    
+    // Check for yesterday activity
+    if (yesterday.year == lastActive.year && yesterday.month == lastActive.month && yesterday.day == lastActive.day) {
+      final newStreak = (data['streak'] ?? 0) + 1;
+      await _db.collection('users').doc(uid).update({
+        'streak': newStreak,
+        'lastActiveAt': now.toIso8601String(),
+      });
+      state = state.copyWith(user: state.user?.copyWith(streak: newStreak, lastActiveAt: now));
+      
+      // Achievement for maintaining a streak
+      if (newStreak % 5 == 0) {
+        _ref.read(notificationProvider.notifier).addNotification(
+          title: 'Unstoppable! 🔥',
+          message: 'You have a $newStreak-day streak! Keep that momentum going.',
+          type: AppNotificationType.achievement,
+        );
+      }
+    } else {
+      // Reset streak if more than a day missed
+      await _db.collection('users').doc(uid).update({
+        'streak': 1,
+        'lastActiveAt': now.toIso8601String(),
+      });
+      state = state.copyWith(user: state.user?.copyWith(streak: 1, lastActiveAt: now));
+    }
+  }
+
+  /// Internal streak update for auth init
+  Future<void> _updateStreak(String uid) async {
+    await updateStreak(customUid: uid);
+  }
+
+  /// Record a user activity: points, levels, and streaks
+  Future<void> recordActivity({int points = 10}) async {
+    if (state.user == null) return;
+    
+    // 1. Update Streak (if new day)
+    await updateStreak();
+    
+    // 2. Add Points & handle leveling
+    await addPoints(points);
+    
+    if (kDebugMode) print('📈 Activity Recorded: +$points points. New Total: ${state.user?.totalPoints}');
   }
 
   /// Fetch user profile from Firestore and update state
@@ -105,6 +188,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           subscriptionTier: tier,
           createdAt: DateTime.now(),
           lastActiveAt: DateTime.now(),
+          streak: 1, // Start with streak of 1 since they are active now
         );
         
         // Save if it's a new user from Google/External
@@ -113,8 +197,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = state.copyWith(isLoggedIn: true, user: newUser, isInitialized: true, isLoading: false);
       }
     } catch (e) {
-      final message = AppNotifications.getFriendlyErrorMessage(e);
-      AppNotifications.show(null, message: message, type: NotificationType.error);
+      final message = notify.AppNotifications.getFriendlyErrorMessage(e);
+      notify.AppNotifications.show(null, message: message, type: notify.NotificationType.error);
       state = state.copyWith(error: e.toString(), isInitialized: true, isLoading: false);
     }
   }
@@ -269,7 +353,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (state.user == null) return;
     
     final currentPoints = state.user!.totalPoints + points;
-    final newLevel = (currentPoints / 100).floor() + 1;
+    
+    // Dynamic leveling: each level requires level * 200 points
+    int newLevel = state.user!.level;
+    int pointsNeeded = newLevel * 200;
+    while (currentPoints >= pointsNeeded) {
+      newLevel++;
+      pointsNeeded = newLevel * 200;
+      
+      // Notify about level up
+      _ref.read(notificationProvider.notifier).addNotification(
+        title: 'Level Up! 🚀',
+        message: 'Congratulations! You reached Level $newLevel. Keep blooming!',
+        type: AppNotificationType.achievement,
+      );
+    }
     
     final updates = {
       'totalPoints': currentPoints,
@@ -306,6 +404,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       
       state = state.copyWith(user: updatedUser, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  /// Upgrade user subscription tier
+  Future<void> upgradeSubscription(SubscriptionTier tier) async {
+    if (state.user == null) return;
+    
+    state = state.copyWith(isLoading: true);
+    try {
+      await _db.collection('users').doc(state.user!.uid).update({
+        'subscriptionTier': tier.name,
+      });
+      
+      final updatedUser = state.user!.copyWith(subscriptionTier: tier);
+      state = state.copyWith(user: updatedUser, isLoading: false);
+      
+      // Also update settings provider
+      _ref.read(settingsProvider.notifier).updateSubscription(tier);
+      
+      _ref.read(notificationProvider.notifier).addNotification(
+        title: 'Premium Activated! 🌟',
+        message: 'Welcome to the ${tier.label} tier. Enjoy your new behavioral powers!',
+        type: AppNotificationType.achievement,
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -358,7 +482,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       // 4. Update Profile in Firestore
       await updateProfile(photoUrl: publicUrl);
-      AppNotifications.show(null, message: 'Profile updated successfully!', type: NotificationType.success);
+      notify.AppNotifications.show(null, message: 'Profile updated successfully!', type: notify.NotificationType.success);
       
     } catch (e) {
       if (kDebugMode) print('❌ Supabase Profile Upload Error: $e');
@@ -372,7 +496,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         errorMsg += 'Technical details: ${e.toString()}';
       }
       
-      AppNotifications.show(null, message: errorMsg, type: NotificationType.error);
+      notify.AppNotifications.show(null, message: errorMsg, type: notify.NotificationType.error);
     }
   }
 
@@ -429,7 +553,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         errorMsg += 'Check Supabase RLS Policies.';
       }
       
-      AppNotifications.show(null, message: errorMsg, type: NotificationType.error);
+      notify.AppNotifications.show(null, message: errorMsg, type: notify.NotificationType.error);
       return null;
     }
   }
@@ -575,8 +699,6 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       );
     } catch (e) {
       print('Dashboard Load Error: $e');
-      // On error, we still want to show a valid (empty) state rather than dummy data
-      // unless we are in a specifically designated 'demo' mode.
       state = DashboardState(
         todayReport: DailyReport(
           id: 'error',
@@ -600,7 +722,13 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
     }
   }
 
+  /// Refresh the dashboard data
+  Future<void> refresh(String userId) async {
+    await loadDashboard(userId);
+  }
+
   String _mostCommon(List<String> items) {
+    if (items.isEmpty) return 'Neutral';
     final freq = <String, int>{};
     for (final item in items) {
       freq[item] = (freq[item] ?? 0) + 1;
@@ -629,9 +757,6 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       ];
     }
   }
-
-  /// Refresh data
-  Future<void> refresh(String userId) async => loadDashboard(userId);
 }
 
 // ── Analysis State ──
@@ -684,7 +809,7 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
     state = const AnalysisState(isAnalyzing: true);
 
     try {
-      final result = await ApiService.analyzeText(
+      final result = await MindBloomApiService.analyzeText(
         text: text,
         userId: userId,
         inputType: inputType,
@@ -693,7 +818,7 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
       // Add the imageUrl if provided
       final finalResult = imageUrl != null ? result.copyWith(imageUrl: imageUrl) : result;
 
-      final feedback = await ApiService.getFeedback(
+      final feedback = await MindBloomApiService.getFeedback(
         sentiment: finalResult.sentiment,
         tone: finalResult.tone,
         score: finalResult.positivityScore,
@@ -708,7 +833,8 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
           .set(finalResult.toMap());
 
       // Update user stats and grant points
-      await _ref.read(authStateProvider.notifier).addPoints(result.positivityScore ~/ 10);
+      // Update user stats and grant points dynamically
+      await _ref.read(authStateProvider.notifier).recordActivity(points: result.positivityScore ~/ 10);
 
       state = AnalysisState(
         currentResult: result,
@@ -716,8 +842,8 @@ class AnalysisNotifier extends StateNotifier<AnalysisState> {
         isAnalyzing: false,
       );
     } catch (e) {
-      final message = AppNotifications.getFriendlyErrorMessage(e);
-      AppNotifications.show(null, message: message, type: NotificationType.error);
+      final message = notify.AppNotifications.getFriendlyErrorMessage(e);
+      notify.AppNotifications.show(null, message: message, type: notify.NotificationType.error);
       state = AnalysisState(isAnalyzing: false, error: e.toString());
     }
   }
@@ -917,10 +1043,11 @@ class OnboardingNotifier extends StateNotifier<bool> {
 
 // ── Navigation State ──
 final currentTabProvider = StateProvider<int>((ref) => 0);
+final recordTabProvider = StateProvider<int>((ref) => 0); // 0=Journal, 1=Voice
 
 // ── Chat State ──
 final chatMessagesProvider = StateNotifierProvider<ChatNotifier, List<ChatMessage>>((ref) {
-  return ChatNotifier();
+  return ChatNotifier(ref);
 });
 
 class ChatMessage {
@@ -936,23 +1063,172 @@ class ChatMessage {
 }
 
 class ChatNotifier extends StateNotifier<List<ChatMessage>> {
-  ChatNotifier() : super([
+  final Ref _ref;
+  
+  ChatNotifier(this._ref) : super([
     ChatMessage(
-      text: "Hello! I'm your AI Positivity Coach. 🌟\n\nHow are you feeling today? Share your thoughts and I'll help you cultivate a more positive mindset.",
+      text: "Hello! I'm your MindBloom AI Coach. 🌟\n\nHow are you feeling today? Share your thoughts and I'll help you cultivate a more positive mindset.",
       isUser: false,
       timestamp: DateTime.now(),
     ),
   ]);
 
   Future<void> sendMessage(String text) async {
-    // Add user message
+    // 1. Get latest assessment context (CARP research data)
+    final assessmentHistory = _ref.read(assessmentProvider).history;
+    String? psychologicalContext;
+    if (assessmentHistory.isNotEmpty) {
+      final latest = assessmentHistory.first;
+      psychologicalContext = "User's latest psychological assessment is ${latest.type.toUpperCase()} with a result of '${latest.resultLevel}' (Score: ${latest.totalScore}). Interpretation: ${latest.interpretation}";
+    }
+
+    // 2. Add user message
     state = [...state, ChatMessage(text: text, isUser: true, timestamp: DateTime.now())];
 
-    // Get AI response
-    final response = await ApiService.chatWithCoach(text);
+    // 3. Get AI response with context
+    final response = await MindBloomApiService.chatWithCoach(text, psychologicalContext: psychologicalContext);
     state = [...state, ChatMessage(text: response, isUser: false, timestamp: DateTime.now())];
   }
 }
 
 /// Provider to track when the minimum splash animation time has passed
 final splashFinishedProvider = StateProvider<bool>((ref) => false);
+
+// ── Notification State ──
+
+final notificationProvider = StateNotifierProvider<NotificationNotifier, List<NotificationModel>>((ref) {
+  return NotificationNotifier(ref);
+});
+
+class NotificationNotifier extends StateNotifier<List<NotificationModel>> {
+  final Ref _ref;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  NotificationNotifier(this._ref) : super([]) {
+    _init();
+  }
+
+  void _init() {
+    final user = _ref.watch(authStateProvider).user;
+    if (user == null) return;
+
+    _db.collection('users')
+       .doc(user.uid)
+       .collection('notifications')
+       .orderBy('timestamp', descending: true)
+       .snapshots()
+       .listen((snap) {
+         state = snap.docs.map((doc) => NotificationModel.fromMap({...doc.data(), 'id': doc.id})).toList();
+       });
+  }
+
+  Future<void> addNotification({
+    required String title,
+    required String message,
+    required AppNotificationType type,
+  }) async {
+    final user = _ref.read(authStateProvider).user;
+    if (user == null) return;
+
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final notification = NotificationModel(
+      id: id,
+      title: title,
+      message: message,
+      timestamp: DateTime.now(),
+      type: type,
+    );
+
+    await _db.collection('users')
+             .doc(user.uid)
+             .collection('notifications')
+             .doc(id)
+             .set(notification.toMap());
+  }
+
+  Future<void> markAsRead(String id) async {
+    final user = _ref.read(authStateProvider).user;
+    if (user == null) return;
+
+    await _db.collection('users')
+             .doc(user.uid)
+             .collection('notifications')
+             .doc(id)
+             .update({'isRead': true});
+  }
+
+  Future<void> clearAll() async {
+    final user = _ref.read(authStateProvider).user;
+    if (user == null) return;
+
+    final batch = _db.batch();
+    final docs = await _db.collection('users').doc(user.uid).collection('notifications').get();
+    for (var doc in docs.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+}
+// ── Assessment State ──
+
+final assessmentProvider = StateNotifierProvider<AssessmentNotifier, AssessmentState>((ref) {
+  return AssessmentNotifier(ref);
+});
+
+class AssessmentState {
+  final List<PsychologicalAssessment> history;
+  final bool isLoading;
+  final String? error;
+
+  const AssessmentState({
+    this.history = const [],
+    this.isLoading = false,
+    this.error,
+  });
+}
+
+class AssessmentNotifier extends StateNotifier<AssessmentState> {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final Ref _ref;
+
+  AssessmentNotifier(this._ref) : super(const AssessmentState());
+
+  Future<void> loadHistory(String userId) async {
+    state = const AssessmentState(isLoading: true);
+    try {
+      final snap = await _db.collection('users').doc(userId).collection('assessments').orderBy('completedAt', descending: true).get();
+      final history = snap.docs.map((doc) => PsychologicalAssessment.fromMap(doc.data(), doc.id)).toList();
+      state = AssessmentState(history: history, isLoading: false);
+    } catch (e) {
+      state = AssessmentState(error: e.toString(), isLoading: false);
+    }
+  }
+
+  Future<void> saveAssessment(PsychologicalAssessment assessment) async {
+    state = const AssessmentState(isLoading: true);
+    try {
+      await _db.collection('users').doc(assessment.userId).collection('assessments').add(assessment.toMap());
+      await loadHistory(assessment.userId);
+      
+      // Update points
+      // Record activity and update streak
+      await _ref.read(authStateProvider.notifier).recordActivity(points: 50); // Significant points for assessment
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
+}
+
+extension AssessmentStateExtension on AssessmentState {
+  AssessmentState copyWith({
+    List<PsychologicalAssessment>? history,
+    bool? isLoading,
+    String? error,
+  }) {
+    return AssessmentState(
+      history: history ?? this.history,
+      isLoading: isLoading ?? this.isLoading,
+      error: error ?? this.error,
+    );
+  }
+}

@@ -4,6 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/providers/providers.dart';
 import '../../../core/models/models.dart';
 import 'dart:ui';
+import '../../payment/screens/payment_screen.dart';
 
 class SubscriptionScreen extends ConsumerWidget {
   const SubscriptionScreen({super.key});
@@ -261,14 +262,23 @@ class SubscriptionScreen extends ConsumerWidget {
                   height: 52,
                   child: ElevatedButton(
                     onPressed: isCurrent ? null : () {
-                      ref.read(settingsProvider.notifier).updateSubscription(tier);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Welcome to the ${tier.label} Tier!'),
-                          backgroundColor: color,
-                        ),
-                      );
-                      Navigator.pop(context);
+                      if (tier == SubscriptionTier.seedling) {
+                        ref.read(settingsProvider.notifier).updateSubscription(tier);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Welcome back to the Free Tier!'),
+                            backgroundColor: color,
+                          ),
+                        );
+                        Navigator.pop(context);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PaymentScreen(tier: tier, price: price),
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isCurrent ? Colors.grey.withValues(alpha: 0.2) : color,

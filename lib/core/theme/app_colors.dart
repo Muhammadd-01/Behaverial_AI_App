@@ -74,4 +74,32 @@ class AppColors {
   static Color glassBlack = Colors.black.withValues(alpha: 0.05);
   static Color glassBorder = Colors.white.withValues(alpha: 0.12);
   static Color glassBorderDark = Colors.black.withValues(alpha: 0.08);
+
+  // ── More Gradients ──
+  static const LinearGradient purpleGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF8B5CF6), Color(0xFFD946EF)],
+  );
+
+  static const LinearGradient roseGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFF43F5E), Color(0xFFFB923C)],
+  );
+
+  static const LinearGradient cosmicGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)],
+  );
+
+  // ── Glass Decorations ──
+  static BoxDecoration glassDecoration({required bool isDarkMode, double blur = 10, double opacity = 0.08}) {
+    return BoxDecoration(
+      color: isDarkMode ? Colors.white.withValues(alpha: opacity) : Colors.black.withValues(alpha: 0.03),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: isDarkMode ? glassBorder : glassBorderDark),
+    );
+  }
 }

@@ -8,6 +8,7 @@ import '../../../core/providers/providers.dart';
 import '../../../core/models/models.dart';
 import '../../settings/screens/notifications_screen.dart';
 import '../../gamification/screens/behavior_game_screen.dart';
+import 'recent_activity_screen.dart';
 import '../../../core/services/api_service.dart';
 
 /// Main dashboard showing positivity score, insights, and weekly trends
@@ -47,7 +48,7 @@ class DashboardScreen extends ConsumerWidget {
                         _buildPassiveAIBanner(ref, isDarkMode),
                         _buildHeader(context, user, isDarkMode),
                         const SizedBox(height: 20),
-                        _buildDailyNudge(user, isDarkMode).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1),
+                        _buildDailyNudge(context, user, isDarkMode).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1),
                         const SizedBox(height: 16),
                         /// Service for communicating with MindBloom AI and Backend
                         _buildScoreCard(dashboard.todayReport, isDarkMode).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1),
@@ -167,29 +168,34 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDailyNudge(UserModel? user, bool isDarkMode) {
-    // Calculate level progress (e.g., 100 points per level)
-    final pointsInCurrentLevel = (user?.totalPoints ?? 0) % 100;
-    final progress = pointsInCurrentLevel / 100.0;
+  Widget _buildDailyNudge(BuildContext context, UserModel? user, bool isDarkMode) {
+    // Calculate level progress based on 200 points per level as per AuthNotifier
+    final currentLevel = user?.level ?? 1;
+    final totalPoints = user?.totalPoints ?? 0;
+    final pointsForThisLevel = totalPoints % 200;
+    final progress = pointsForThisLevel / 200.0;
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.glassWhite : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
-      ),
+      padding: const EdgeInsets.all(18),
+      decoration: AppColors.glassDecoration(isDarkMode: isDarkMode),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.primaryAccent.withValues(alpha: 0.1),
+              gradient: AppColors.amberGradient,
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.highlight.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                )
+              ],
             ),
-            child: const Icon(Icons.bolt_rounded, color: AppColors.primaryAccent, size: 20),
+            child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,32 +204,49 @@ class DashboardScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Level ${user?.level ?? 1} Progress',
+                      'Level $currentLevel Journey',
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                         color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
                       ),
                     ),
                     Text(
                       '${(progress * 100).toInt()}%',
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryAccent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.highlight,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 6,
-                    backgroundColor: isDarkMode ? AppColors.cardBgLight : AppColors.cardBgLightGray,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.primaryAccent),
-                  ),
+                const SizedBox(height: 10),
+                Stack(
+                  children: [
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: isDarkMode ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: 1.seconds,
+                      height: 8,
+                      width: MediaQuery.of(context).size.width * 0.5 * progress,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.amberGradient,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.highlight.withValues(alpha: 0.4),
+                            blurRadius: 6,
+                          )
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -409,17 +432,18 @@ class DashboardScreen extends ConsumerWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            scoreColor.withValues(alpha: 0.15),
-            isDarkMode ? AppColors.cardBg : Colors.white,
+            scoreColor.withValues(alpha: 0.2),
+            isDarkMode ? AppColors.cardBg.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.9),
+            scoreColor.withValues(alpha: 0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: scoreColor.withValues(alpha: 0.2)),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: scoreColor.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: scoreColor.withValues(alpha: isDarkMode ? 0.1 : 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: scoreColor.withValues(alpha: isDarkMode ? 0.2 : 0.1),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -560,57 +584,73 @@ class DashboardScreen extends ConsumerWidget {
     final points = user?.totalPoints ?? 0;
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.glassWhite : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark),
-        boxShadow: isDarkMode ? null : [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-          )
-        ],
-      ),
+      padding: const EdgeInsets.all(24),
+      decoration: AppColors.glassDecoration(isDarkMode: isDarkMode),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _streakItem('🔥', '$streak', 'Day Streak', isDarkMode),
+          _streakItem('🔥', '$streak', 'Streak', isDarkMode, AppColors.roseGradient),
           Container(
-            width: 1,
-            height: 40,
-            color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark,
+            width: 1.5,
+            height: 45,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.transparent, isDarkMode ? Colors.white24 : Colors.black12, Colors.transparent],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
           ),
-          _streakItem('⭐', 'Lvl $level', 'Level', isDarkMode),
+          _streakItem('⭐', 'Lvl $level', 'Level', isDarkMode, AppColors.purpleGradient),
           Container(
-            width: 1,
-            height: 40,
-            color: isDarkMode ? AppColors.glassBorder : AppColors.glassBorderDark,
+            width: 1.5,
+            height: 45,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.transparent, isDarkMode ? Colors.white24 : Colors.black12, Colors.transparent],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
           ),
-          _streakItem('💎', '$points', 'Points', isDarkMode),
+          _streakItem('💎', '$points', 'Points', isDarkMode, AppColors.blueGradient),
         ],
       ),
     );
   }
 
-  Widget _streakItem(String emoji, String value, String label, bool isDarkMode) {
+  Widget _streakItem(String emoji, String value, String label, bool isDarkMode, LinearGradient gradient) {
     return Column(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 24)),
-        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradient.colors.map((c) => c.withValues(alpha: 0.1)).toList(),
+              begin: gradient.begin,
+              end: gradient.end,
+            ),
+            shape: BoxShape.circle,
+          ),
+          child: Text(emoji, style: const TextStyle(fontSize: 22)),
+        ),
+        const SizedBox(height: 10),
         Text(
           value,
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w900,
             color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimaryDark,
+            letterSpacing: -0.5,
           ),
         ),
         Text(
           label,
           style: TextStyle(
-            fontSize: 12, 
-            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark
+            fontSize: 11, 
+            fontWeight: FontWeight.w500,
+            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondaryDark,
+            letterSpacing: 0.5,
           ),
         ),
       ],
@@ -806,7 +846,7 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildAICoachCard(bool isDarkMode) {
     return FutureBuilder<String>(
-      future: ApiService.chatWithCoach('Give me a one-sentence behavioral positivity tip for today.'),
+      future: MindBloomApiService.chatWithCoach('Give me a one-sentence behavioral positivity tip for today.'),
       builder: (context, snapshot) {
         final isLoading = snapshot.connectionState == ConnectionState.waiting;
         final tip = snapshot.data ?? 'Believe in yourself and take one small step towards your goal today.';
@@ -895,7 +935,12 @@ class DashboardScreen extends ConsumerWidget {
             if (analyses.isNotEmpty)
               TextButton(
                 onPressed: () {
-                  // Navigate to all activity
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RecentActivityScreen(),
+                    ),
+                  );
                 },
                 child: Text(
                   'See All',

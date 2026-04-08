@@ -308,3 +308,91 @@ enum MoodType {
 
   const MoodType(this.emoji, this.label, this.baseScore);
 }
+
+// ── Notification Model ──
+
+enum AppNotificationType { insight, achievement, reminder, security }
+
+class NotificationModel {
+  final String id;
+  final String title;
+  final String message;
+  final DateTime timestamp;
+  final AppNotificationType type;
+  final bool isRead;
+
+  NotificationModel({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.timestamp,
+    required this.type,
+    this.isRead = false,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'title': title,
+    'message': message,
+    'timestamp': timestamp.toIso8601String(),
+    'type': type.name,
+    'isRead': isRead,
+  };
+
+  factory NotificationModel.fromMap(Map<String, dynamic> map) => NotificationModel(
+    id: map['id'] ?? '',
+    title: map['title'] ?? '',
+    message: map['message'] ?? '',
+    timestamp: DateTime.parse(map['timestamp']),
+    type: AppNotificationType.values.firstWhere((e) => e.name == map['type']),
+    isRead: map['isRead'] ?? false,
+  );
+}
+
+/// Model for psychological assessments (PHQ-9, GAD-7, etc.)
+class PsychologicalAssessment {
+  final String id;
+  final String userId;
+  final String type; // 'phq9', 'gad7', 'pss10'
+  final int totalScore;
+  final String resultLevel; // e.g., 'Mild', 'Moderate', 'Severe'
+  final String interpretation;
+  final Map<String, int> answers;
+  final DateTime completedAt;
+
+  PsychologicalAssessment({
+    required this.id,
+    required this.userId,
+    required this.type,
+    required this.totalScore,
+    required this.resultLevel,
+    required this.interpretation,
+    required this.answers,
+    required this.completedAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'type': type,
+      'totalScore': totalScore,
+      'resultLevel': resultLevel,
+      'interpretation': interpretation,
+      'answers': answers,
+      'completedAt': completedAt.toIso8601String(),
+    };
+  }
+
+  factory PsychologicalAssessment.fromMap(Map<String, dynamic> map, String id) {
+    return PsychologicalAssessment(
+      id: id,
+      userId: map['userId'] ?? '',
+      type: map['type'] ?? '',
+      totalScore: map['totalScore'] ?? 0,
+      resultLevel: map['resultLevel'] ?? 'Unknown',
+      interpretation: map['interpretation'] ?? '',
+      answers: Map<String, int>.from(map['answers'] ?? {}),
+      completedAt: DateTime.parse(map['completedAt'] ?? DateTime.now().toIso8601String()),
+    );
+  }
+}

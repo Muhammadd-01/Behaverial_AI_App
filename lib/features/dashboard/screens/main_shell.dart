@@ -5,6 +5,7 @@ import '../../../core/providers/providers.dart';
 import '../../dashboard/screens/dashboard_screen.dart';
 import '../../record/screens/record_screen.dart';
 import '../../insights/screens/insights_screen.dart';
+import '../../psychology/screens/psychological_screen.dart';
 import '../../settings/screens/settings_screen.dart';
 
 /// Main app shell with bottom navigation bar
@@ -16,30 +17,36 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
-  final _screens = const [
-    DashboardScreen(),
-    InsightsScreen(),
-    RecordScreen(),
-    SettingsScreen(),
+  final _screens = [
+    const DashboardScreen(),
+    const InsightsScreen(),
+    const PsychologicalScreen(), // Index 2
+    const RecordScreen(),
+    const SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Initial data loading for existing session
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = ref.read(authStateProvider);
+      if (auth.user != null) {
+        ref.read(dashboardProvider.notifier).loadDashboard(auth.user!.uid);
+        ref.read(assessmentProvider.notifier).loadHistory(auth.user!.uid);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final currentTab = ref.watch(currentTabProvider);
 
-    // Reactive data loading: Whenever the user signs in, trigger dashboard load.
+    // Reactive data loading for future changes
     ref.listen(authStateProvider, (previous, next) {
       if (next.user != null && previous?.user == null) {
         ref.read(dashboardProvider.notifier).loadDashboard(next.user!.uid);
-      }
-    });
-
-    // Handle persistent login case: if user is already here, ensure data starts loading
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = ref.read(authStateProvider);
-      final dash = ref.read(dashboardProvider);
-      if (auth.user != null && dash.isLoading && dash.todayReport == null) {
-        ref.read(dashboardProvider.notifier).loadDashboard(auth.user!.uid);
+        ref.read(assessmentProvider.notifier).loadHistory(next.user!.uid);
       }
     });
 
@@ -49,52 +56,185 @@ class _MainShellState extends ConsumerState<MainShell> {
         index: currentTab,
         children: _screens,
       ),
+      extendBody: true,
       bottomNavigationBar: Container(
+        margin: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
         decoration: BoxDecoration(
-          color: AppColors.secondaryBg,
-          border: Border(
-            top: BorderSide(color: AppColors.glassBorder, width: 0.5),
-          ),
+          color: AppColors.secondaryBg.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: AppColors.glassBorder.withValues(alpha: 0.1), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                children: [
+                   Expanded(
+                    child: _NavItem(
+                      icon: Icons.dashboard_rounded,
+                      label: 'Home',
+                      isSelected: currentTab == 0,
+                      onTap: () => ref.read(currentTabProvider.notifier).state = 0,
+                    ),
+                  ),
+                  Expanded(
+                    child: _NavItem(
+                      icon: Icons.insights_rounded,
+                      label: 'Insights',
+                      isSelected: currentTab == 1,
+                      onTap: () => ref.read(currentTabProvider.notifier).state = 1,
+                    ),
+                  ),
+                  const SizedBox(width: 40), // Space for center FAB
+                  Expanded(
+                    child: _NavItem(
+                      icon: Icons.psychology_rounded,
+                      label: 'Psychology',
+                      isSelected: currentTab == 2,
+                      onTap: () => ref.read(currentTabProvider.notifier).state = 2,
+                    ),
+                  ),
+                  Expanded(
+                    child: _NavItem(
+                      icon: Icons.settings_rounded,
+                      label: 'Settings',
+                      isSelected: currentTab == 4,
+                      onTap: () => ref.read(currentTabProvider.notifier).state = 4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: _RecordNavItem(
+          isSelected: currentTab == 3,
+          onTap: () => _showRecordMenu(context, ref),
+        ),
+      ),
+    );
+  }
+
+  void _showRecordMenu(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.secondaryBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border.all(color: AppColors.glassBorder.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'How would you like to reflect?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
               children: [
-                _NavItem(
-                  icon: Icons.dashboard_rounded,
-                  label: 'Home',
-                  isSelected: currentTab == 0,
-                  onTap: () => ref.read(currentTabProvider.notifier).state = 0,
+                Expanded(
+                  child: _MenuOption(
+                    icon: Icons.edit_note_rounded,
+                    label: 'Journal',
+                    color: AppColors.primaryAccent,
+                    onTap: () {
+                      ref.read(recordTabProvider.notifier).state = 0;
+                      ref.read(currentTabProvider.notifier).state = 3; // Record is now index 3
+                      Navigator.pop(context);
+                    },
+                  ),
                 ),
-                _NavItem(
-                  icon: Icons.insights_rounded,
-                  label: 'Insights',
-                  isSelected: currentTab == 1,
-                  onTap: () => ref.read(currentTabProvider.notifier).state = 1,
-                ),
-                // Center Record button (special FAB-like)
-                _RecordNavItem(
-                  isSelected: currentTab == 2,
-                  onTap: () => ref.read(currentTabProvider.notifier).state = 2,
-                ),
-                _NavItem(
-                  icon: Icons.settings_rounded,
-                  label: 'Settings',
-                  isSelected: currentTab == 3,
-                  onTap: () => ref.read(currentTabProvider.notifier).state = 3,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _MenuOption(
+                    icon: Icons.mic_rounded,
+                    label: 'Voice',
+                    color: AppColors.secondaryAccent,
+                    onTap: () {
+                      ref.read(recordTabProvider.notifier).state = 1;
+                      ref.read(currentTabProvider.notifier).state = 3; // Record is now index 3
+                      Navigator.pop(context);
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MenuOption({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -122,7 +262,7 @@ class _NavItem extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primaryAccent.withValues(alpha: 0.1)
@@ -138,12 +278,15 @@ class _NavItem extends StatelessWidget {
               color: isSelected ? AppColors.primaryAccent : AppColors.textSecondary,
             ),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected ? AppColors.primaryAccent : AppColors.textSecondary,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? AppColors.primaryAccent : AppColors.textSecondary,
+                ),
               ),
             ),
           ],

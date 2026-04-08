@@ -397,7 +397,7 @@ class SettingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'AI Positivity Coach',
+                    'Positivity Coach',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,

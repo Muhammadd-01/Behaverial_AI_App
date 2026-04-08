@@ -24,8 +24,12 @@ class _BehaviorGameScreenState extends ConsumerState<BehaviorGameScreen> {
   }
 
   Future<void> _loadAIChallenge() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
-    final challenge = await ApiService.generateAIChallenge();
+    
+    final challenge = await MindBloomApiService.generateAIChallenge();
+    
+    if (!mounted) return;
     setState(() {
       _aiChallenge = challenge;
       _isLoading = false;
